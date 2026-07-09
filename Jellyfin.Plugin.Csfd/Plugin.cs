@@ -32,7 +32,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     public override Guid Id => Guid.Parse("200ed2e9-c3b4-4c8a-a8ae-b90fc6b635b8");
 
     /// <inheritdoc />
-    public override string Description => "Doplní ČSFD hodnocení (v procentech) k filmům a seriálům jako CriticRating.";
+    public override string Description => "Doplní ČSFD hodnocení (v procentech) k filmům a seriálům jako tag \"ČSFD: NN%\".";
 
     /// <summary>
     /// Gets the current plugin instance.

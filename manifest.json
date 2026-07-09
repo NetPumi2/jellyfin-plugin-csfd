@@ -2,11 +2,19 @@
   {
     "guid": "200ed2e9-c3b4-4c8a-a8ae-b90fc6b635b8",
     "name": "ČSFD Rating",
-    "description": "Looks up a movie/series on ČSFD (Czech-Slovak Film Database) by name and year during a metadata refresh and stores its percentage rating as CriticRating, so it shows up in the Jellyfin UI next to the item's title the same way the Rotten Tomatoes rating does. Requires a valid csfd.cz session cookie configured in the plugin's settings, because csfd.cz is protected by the Anubis anti-bot challenge - see the plugin README.",
+    "description": "Looks up a movie/series on ČSFD (Czech-Slovak Film Database) by name and year during a metadata refresh and adds its percentage rating as a \"ČSFD: NN%\" tag, visible on the item's detail page in the Jellyfin UI. Requires a valid csfd.cz session cookie configured in the plugin's settings, because csfd.cz is protected by the Anubis anti-bot challenge - see the plugin README.",
     "overview": "Shows the ČSFD rating (in %) for movies and series.",
     "owner": "NetPumi2",
     "category": "Metadata",
     "versions": [
+      {
+        "version": "1.0.0.2",
+        "changelog": "Change: store the ČSFD rating as a \"ČSFD: NN%\" tag instead of CriticRating. CriticRating is a single shared field other rating plugins (e.g. Rotten Tomatoes/OMDb) also write to, so whichever provider ran last silently won and the ČSFD value never reliably showed up. Tags are additive and display as plain text on the item detail page.",
+        "targetAbi": "10.11.6.0",
+        "sourceUrl": "https://github.com/NetPumi2/jellyfin-plugin-csfd/releases/download/v1.0.0.2/csfd-rating-1.0.0.2.zip",
+        "checksum": "9dbf664652262042c177a8e49c84a002",
+        "timestamp": "2026-07-09T20:54:20Z"
+      },
       {
         "version": "1.0.0.1",
         "changelog": "Fix: build against Jellyfin.Controller/Jellyfin.Model 10.11.6 to match the target server's ABI exactly. The 1.0.0.0 build (against 10.11.11) caused a NotSupported/TypeLoadException on 10.11.6 servers due to a binary incompatibility between patch versions.",

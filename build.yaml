@@ -1,21 +1,26 @@
 ---
 name: "ČSFD Rating"
 guid: "200ed2e9-c3b4-4c8a-a8ae-b90fc6b635b8"
-version: "1.0.0.1"
+version: "1.0.0.2"
 targetAbi: "10.11.6.0"
 framework: "net9.0"
 owner: "NetPumi2"
 overview: "Zobrazí ČSFD hodnocení (v %) u filmů a seriálů."
 description: >
   Při refreshi metadat vyhledá film/seriál na ČSFD podle názvu a roku a jeho procentuální
-  hodnocení uloží jako CriticRating, takže se zobrazí v Jellyfin UI vedle názvu položky
-  (stejně jako Rotten Tomatoes rajčátko). Vyžaduje platnou session cookie z csfd.cz kvůli
-  Anubis anti-bot ochraně - viz README.
+  hodnocení přidá jako tag "ČSFD: NN%", viditelný na detailu položky v Jellyfin UI. Vyžaduje
+  platnou session cookie z csfd.cz kvůli Anubis anti-bot ochraně - viz README.
 category: "Metadata"
 artifacts:
 - "Jellyfin.Plugin.Csfd.dll"
 - "HtmlAgilityPack.dll"
 changelog: >
+  1.0.0.2
+  - Change: store the ČSFD rating as a "ČSFD: NN%" tag instead of CriticRating. CriticRating is
+    a single shared field that other rating plugins (e.g. Rotten Tomatoes/OMDb) also write to,
+    so whichever provider ran last silently won - the ČSFD value never reliably showed up. Tags
+    are additive and display as plain text on the item detail page.
+
   1.0.0.1
   - Fix: build against Jellyfin.Controller/Jellyfin.Model 10.11.6 to match the target server's
     ABI exactly. The 1.0.0.0 build (against 10.11.11) caused a NotSupported/TypeLoadException

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,6 +18,13 @@ namespace Jellyfin.Plugin.Csfd.Providers;
 internal static class CsfdMetadataUpdater
 {
     private const string CsfdProviderIdName = "Csfd";
+
+    // CriticRating is a single shared field other metadata providers (e.g. an OMDb/Rotten
+    // Tomatoes provider) also write to, and whichever provider runs last wins - so setting it
+    // here got silently overwritten by the other provider's own rating. A Tag is additive and
+    // not contested by other providers, and shows as plain readable text on the item's detail
+    // page instead of reusing the tomato icon that's already spoken for by Rotten Tomatoes.
+    private const string CsfdTagPrefix = "ČSFD: ";
 
     public static async Task<ItemUpdateType> FetchAsync(
         BaseItem item,
@@ -70,7 +78,7 @@ internal static class CsfdMetadataUpdater
             case CsfdLookupStatus.Unrated:
                 cache.Set(name, year, new CsfdCacheEntry(DateTime.UtcNow, result.CsfdUrl, null));
                 logger.LogDebug("ČSFD: '{Name}' ({Year}) zatím nemá dost hodnocení (?), rating nenastavuji.", name, year);
-                return ItemUpdateType.None;
+                return ApplyResult(item, null, result.CsfdUrl);
 
             case CsfdLookupStatus.NotFound:
                 logger.LogDebug("ČSFD: nenalezen výsledek pro '{Name}' ({Year}).", name, year);
@@ -91,14 +99,23 @@ internal static class CsfdMetadataUpdater
     {
         var updateType = ItemUpdateType.None;
 
+        var existingTags = item.Tags ?? Array.Empty<string>();
+        var withoutCsfdTag = existingTags
+            .Where(tag => !tag.StartsWith(CsfdTagPrefix, StringComparison.Ordinal))
+            .ToArray();
+
+        var newTags = withoutCsfdTag;
         if (ratingPercent.HasValue)
         {
-            var newValue = (float)ratingPercent.Value;
-            if (item.CriticRating != newValue)
-            {
-                item.CriticRating = newValue;
-                updateType |= ItemUpdateType.MetadataDownload;
-            }
+            newTags = new string[withoutCsfdTag.Length + 1];
+            withoutCsfdTag.CopyTo(newTags, 0);
+            newTags[^1] = $"{CsfdTagPrefix}{ratingPercent.Value}%";
+        }
+
+        if (!newTags.SequenceEqual(existingTags))
+        {
+            item.Tags = newTags;
+            updateType |= ItemUpdateType.MetadataDownload;
         }
 
         if (!string.IsNullOrEmpty(csfdUrl)

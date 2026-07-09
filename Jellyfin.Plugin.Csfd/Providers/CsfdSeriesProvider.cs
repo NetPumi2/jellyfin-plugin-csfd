@@ -10,8 +10,9 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.Csfd.Providers;
 
 /// <summary>
-/// Adds a ČSFD percentage rating (as <see cref="MediaBrowser.Controller.Entities.BaseItem.CriticRating"/>)
-/// to series during a library metadata refresh.
+/// Adds a ČSFD percentage rating (as a <c>"ČSFD: NN%"</c> tag on
+/// <see cref="MediaBrowser.Controller.Entities.BaseItem.Tags"/>) to series during a library
+/// metadata refresh.
 /// </summary>
 public class CsfdSeriesProvider : ICustomMetadataProvider<Series>, IHasOrder
 {

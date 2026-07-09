@@ -1,9 +1,14 @@
 # ČSFD Rating (jellyfin-plugin-csfd)
 
 A Jellyfin plugin that, during a metadata refresh, looks up a movie/series on
-[ČSFD](https://www.csfd.cz) (the Czech-Slovak Film Database) by name and year and stores its
-percentage rating as `CriticRating` - Jellyfin's UI then shows it next to the item's title the
-same way it shows the Rotten Tomatoes tomato (`🍅 63`), just with the ČSFD value instead.
+[ČSFD](https://www.csfd.cz) (the Czech-Slovak Film Database) by name and year and adds its
+percentage rating as a `ČSFD: NN%` tag, visible as plain text on the item's detail page in the
+Jellyfin UI.
+
+(Earlier versions stored the rating as `CriticRating`, the same field Jellyfin uses for the
+Rotten Tomatoes tomato icon - but that field is shared with whatever other metadata provider also
+sets it, e.g. an OMDb/Rotten Tomatoes provider, and whichever one runs last silently overwrites
+the other. Tags don't have that problem.)
 
 ## Important: ČSFD is protected by the Anubis anti-bot challenge
 
@@ -48,14 +53,14 @@ is invalid - refresh it in the ČSFD Rating plugin settings"), and you just repe
 3. It downloads that movie's/series's page and extracts the percentage from
    `<div class="film-rating-average">63%</div>`. If ČSFD shows `?` (not enough ratings yet), no
    rating is set.
-4. It sets `item.CriticRating` to that value (0-100 scale, a 1:1 match for ČSFD's percentage) and
-   stores the ČSFD URL as a provider id (`Csfd`) on the item.
+4. It adds a `ČSFD: NN%` tag to `item.Tags` (replacing any `ČSFD: ...` tag left over from an
+   earlier refresh) and stores the ČSFD URL as a provider id (`Csfd`) on the item.
 5. The result (including "not found") is cached by name+year for the duration configured in
    settings (default 14 days / 336 hours), so ČSFD isn't re-scraped on every single refresh.
 
 Error handling: a missing/invalid cookie, a timeout, no matching search result, or a change in
-ČSFD's page structure are all just logged (`ILogger`) - the item is left without `CriticRating`
-and the library refresh keeps going; the plugin never crashes over a single item.
+ČSFD's page structure are all just logged (`ILogger`) - the item is left without a ČSFD tag and
+the library refresh keeps going; the plugin never crashes over a single item.
 
 **Known limitations:** the first search result is used as-is - for ambiguous titles (several
 movies with the same name and year, remakes, etc.) this can pick the wrong item. ČSFD's page
@@ -96,7 +101,7 @@ This repo is public and is meant to be installed as a custom Jellyfin plugin rep
 by `manifest.json` at the repo root (served via raw.githubusercontent.com) and a `.zip` per
 version attached to a GitHub Release.
 
-1. Bump the version in `Directory.Build.props` (and `build.yaml`) if this isn't `1.0.0.1`.
+1. Bump the version in `Directory.Build.props` (and `build.yaml`) if this isn't `1.0.0.2`.
 2. Build and package the release zip:
 
    ```bash
@@ -173,13 +178,13 @@ directory (typically mounted as a volume, e.g. `/config` inside the container). 
 2. **Create the plugin's subdirectory** (the version must match the one in `meta.json`/`build.yaml`):
 
    ```bash
-   mkdir -p "<Source>/plugins/ČSFD Rating_1.0.0.1"
+   mkdir -p "<Source>/plugins/ČSFD Rating_1.0.0.2"
    ```
 
 3. **Copy the DLL files and meta.json** from `publish/` into that directory:
 
    ```bash
-   cp publish/Jellyfin.Plugin.Csfd.dll publish/HtmlAgilityPack.dll "<Source>/plugins/ČSFD Rating_1.0.0.1/"
+   cp publish/Jellyfin.Plugin.Csfd.dll publish/HtmlAgilityPack.dll "<Source>/plugins/ČSFD Rating_1.0.0.2/"
    ```
 
    `meta.json` (bump `version`/`timestamp` for later releases) - contents:
@@ -187,14 +192,14 @@ directory (typically mounted as a volume, e.g. `/config` inside the container). 
    ```json
    {
      "category": "Metadata",
-     "changelog": "1.0.0.1 - Fix: build against Jellyfin.Controller/Jellyfin.Model 10.11.6 to match the target server's ABI exactly.",
-     "description": "Looks up a movie/series on ČSFD by name and year during a metadata refresh and stores its percentage rating as CriticRating.",
+     "changelog": "1.0.0.2 - Store the ČSFD rating as a \"ČSFD: NN%\" tag instead of CriticRating.",
+     "description": "Looks up a movie/series on ČSFD by name and year during a metadata refresh and adds its percentage rating as a \"ČSFD: NN%\" tag.",
      "guid": "200ed2e9-c3b4-4c8a-a8ae-b90fc6b635b8",
      "name": "ČSFD Rating",
      "overview": "Shows the ČSFD rating (in %) for movies and series.",
      "owner": "NetPumi2",
      "targetAbi": "10.11.6.0",
-     "version": "1.0.0.1",
+     "version": "1.0.0.2",
      "status": 0,
      "autoUpdate": false
    }
@@ -221,9 +226,9 @@ directory (typically mounted as a volume, e.g. `/config` inside the container). 
    noticeably from their IMDb rating, so the change is easy to spot) → **⋮ → Scan Library** (or
    via **Dashboard → Libraries → (your library) → Scan**, with "Replace all metadata" enabled if
    you want a fresh refresh even for already-scanned items).
-3. Once the scan finishes, open a movie's/series's detail page and check that a tomato icon (🍅)
-   with a percentage matching that item's ČSFD rating now shows up (double-check manually on
-   csfd.cz that it matches).
+3. Once the scan finishes, open a movie's/series's detail page and check that a `ČSFD: NN%` tag
+   with a percentage matching that item's ČSFD rating now shows up among its tags (double-check
+   manually on csfd.cz that it matches).
 4. If the rating didn't show up, check the Jellyfin log (**Dashboard → Logs**, or the log file
    directly in the config directory) for lines from `Jellyfin.Plugin.Csfd` - the most common
    causes are:
@@ -257,19 +262,19 @@ tests/Jellyfin.Plugin.Csfd.Tests/
 
 ## Manual steps (need your GitHub/Jellyfin login - can't be automated)
 
-To finish publishing v1.0.0.1 and make the plugin catalog installable:
+To finish publishing v1.0.0.2 and make the plugin catalog installable:
 
 1. **Create the GitHub Release.** On GitHub, go to the repo → **Releases → Draft a new release**.
-   - Tag: `v1.0.0.1` (create it on publish, targeting `main`)
-   - Title: e.g. `v1.0.0.1`
-   - Attach `dist/csfd-rating-1.0.0.1.zip` (built by `./scripts/package-release.sh`) under
+   - Tag: `v1.0.0.2` (create it on publish, targeting `main`)
+   - Title: e.g. `v1.0.0.2`
+   - Attach `dist/csfd-rating-1.0.0.2.zip` (built by `./scripts/package-release.sh`) under
      **Attach binaries by dropping them here**.
    - Publish the release. This must produce the download URL already referenced in
      `manifest.json`:
-     `https://github.com/NetPumi2/jellyfin-plugin-csfd/releases/download/v1.0.0.1/csfd-rating-1.0.0.1.zip`
-   - The earlier `v1.0.0.0` release/tag (if you already created it) only ever produced a build
-     that fails as `NotSupported` on your server - you can leave it as-is for history, or delete
-     it, your choice. `manifest.json` now points people at `1.0.0.1` first either way.
+     `https://github.com/NetPumi2/jellyfin-plugin-csfd/releases/download/v1.0.0.2/csfd-rating-1.0.0.2.zip`
+   - The earlier `v1.0.0.0`/`v1.0.0.1` releases/tags (if you already created them) can be left
+     as-is for history, or deleted - your choice. `manifest.json` now points people at `1.0.0.2`
+     first either way.
 2. **Add the repository in Jellyfin.** Dashboard → Plugins → Repositories → New Repository:
    - Repository Name: `ČSFD Rating` (or anything)
    - Repository URL: `https://raw.githubusercontent.com/NetPumi2/jellyfin-plugin-csfd/main/manifest.json`
