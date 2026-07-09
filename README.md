@@ -1,5 +1,7 @@
 # ČSFD Rating (jellyfin-plugin-csfd)
 
+![vibe coded](https://img.shields.io/badge/vibe%20coded-100%25-ff69b4)
+
 A Jellyfin plugin that, during a metadata refresh, looks up a movie/series on
 [ČSFD](https://www.csfd.cz) (the Czech-Slovak Film Database) by name and year and adds its
 percentage rating as a `ČSFD: NN%` tag, visible as plain text on the item's detail page in the
