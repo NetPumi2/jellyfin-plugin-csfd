@@ -1,0 +1,20 @@
+[
+  {
+    "guid": "200ed2e9-c3b4-4c8a-a8ae-b90fc6b635b8",
+    "name": "ČSFD Rating",
+    "description": "Looks up a movie/series on ČSFD (Czech-Slovak Film Database) by name and year during a metadata refresh and stores its percentage rating as CriticRating, so it shows up in the Jellyfin UI next to the item's title the same way the Rotten Tomatoes rating does. Requires a valid csfd.cz session cookie configured in the plugin's settings, because csfd.cz is protected by the Anubis anti-bot challenge - see the plugin README.",
+    "overview": "Shows the ČSFD rating (in %) for movies and series.",
+    "owner": "NetPumi2",
+    "category": "Metadata",
+    "versions": [
+      {
+        "version": "1.0.0.0",
+        "changelog": "Initial release: ČSFD rating lookup for movies and series via CriticRating.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/NetPumi2/jellyfin-plugin-csfd/releases/download/v1.0.0.0/csfd-rating-1.0.0.0.zip",
+        "checksum": "f1a96a5f9efb4d054242ff94ea8fdfa8",
+        "timestamp": "2026-07-09T20:22:56Z"
+      }
+    ]
+  }
+]

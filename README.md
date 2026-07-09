@@ -89,7 +89,59 @@ Among the output in `publish/`, the plugin needs these two files (the rest - `.p
 - `Jellyfin.Plugin.Csfd.dll`
 - `HtmlAgilityPack.dll`
 
+## Releasing a new version (packaging + manifest.json)
+
+This repo is public and is meant to be installed as a custom Jellyfin plugin repository, backed
+by `manifest.json` at the repo root (served via raw.githubusercontent.com) and a `.zip` per
+version attached to a GitHub Release.
+
+1. Bump the version in `Directory.Build.props` (and `build.yaml`) if this isn't `1.0.0.0`.
+2. Build and package the release zip:
+
+   ```bash
+   ./scripts/package-release.sh
+   # or explicitly: ./scripts/package-release.sh 1.2.0.0
+   ```
+
+   This runs `dotnet publish -c Release`, zips `Jellyfin.Plugin.Csfd.dll` and
+   `HtmlAgilityPack.dll` (the artifacts listed in `build.yaml`) into
+   `dist/csfd-rating-{VERSION}.zip`, and prints its MD5 checksum.
+3. Add a new entry to the `versions` array in `manifest.json` (newest first) with that `version`,
+   `checksum`, a `sourceUrl` following the pattern
+   `https://github.com/NetPumi2/jellyfin-plugin-csfd/releases/download/v{VERSION}/csfd-rating-{VERSION}.zip`,
+   and an updated `changelog`/`timestamp`. `targetAbi` should match the minimum Jellyfin server
+   version this build targets (currently `10.11.0.0`, matching the `Jellyfin.Controller` NuGet
+   version in the `.csproj`).
+4. Commit and push `manifest.json` - see **Manual steps** below for creating the matching GitHub
+   Release and uploading the zip (that part needs your GitHub login and can't be automated here).
+
+`dist/` and `publish/` are gitignored - only `manifest.json` itself is committed; the zip lives
+solely as a GitHub Release asset, never in git history.
+
 ## Installing on Jellyfin (Docker on pinas)
+
+Two ways to install this plugin: as a **custom plugin repository** (recommended - lets Jellyfin
+notify you about future updates), or by **manually copying files** into the plugins folder.
+
+### Option A: custom plugin repository (recommended)
+
+Once a GitHub Release with the packaged zip exists (see **Manual steps** at the end of this
+README), add the repository once in Jellyfin:
+
+1. **Dashboard → Plugins → Repositories → (+) New Repository**
+2. Repository Name: `ČSFD Rating` (or anything you like)
+3. Repository URL: `https://raw.githubusercontent.com/NetPumi2/jellyfin-plugin-csfd/main/manifest.json`
+4. Save, then go to **Dashboard → Plugins → Catalog**, find "ČSFD Rating" under the "Metadata"
+   category, and install it.
+5. Check **Dashboard → Plugins → My Plugins** to confirm it installed and shows as **Active**.
+6. Open **ČSFD Rating → Settings** and paste in your csfd.cz cookie (see
+   [How to get and set the cookie](#how-to-get-and-set-the-cookie) above) - without it the rating
+   lookup will never work.
+
+Future releases just need a new GitHub Release + an updated `manifest.json` entry; Jellyfin will
+offer the update from the Catalog like any other plugin.
+
+### Option B: manual copy (no public repo/release needed)
 
 Jellyfin loads plugins from subdirectories `plugins/<Name>_<version>/` inside its config
 directory (typically mounted as a volume, e.g. `/config` inside the container). Steps:
@@ -190,3 +242,26 @@ tests/Jellyfin.Plugin.Csfd.Tests/
   Fixtures/                        - saved ČSFD HTML samples (search results, film detail,
                                      Anubis challenge page) for testing without network access
 ```
+
+## Manual steps (need your GitHub/Jellyfin login - can't be automated)
+
+To finish publishing v1.0.0.0 and make the plugin catalog installable:
+
+1. **Create the GitHub Release.** On GitHub, go to the repo → **Releases → Draft a new release**.
+   - Tag: `v1.0.0.0` (create it on publish, targeting `main`)
+   - Title: e.g. `v1.0.0.0`
+   - Attach `dist/csfd-rating-1.0.0.0.zip` (built by `./scripts/package-release.sh`) under
+     **Attach binaries by dropping them here**.
+   - Publish the release. This must produce the download URL already referenced in
+     `manifest.json`:
+     `https://github.com/NetPumi2/jellyfin-plugin-csfd/releases/download/v1.0.0.0/csfd-rating-1.0.0.0.zip`
+2. **Add the repository in Jellyfin.** Dashboard → Plugins → Repositories → New Repository:
+   - Repository Name: `ČSFD Rating` (or anything)
+   - Repository URL: `https://raw.githubusercontent.com/NetPumi2/jellyfin-plugin-csfd/main/manifest.json`
+3. **Install the plugin.** Dashboard → Plugins → Catalog → find "ČSFD Rating" (category
+   "Metadata") → Install. Then check Dashboard → Plugins → My Plugins to confirm it's listed and
+   **Active**.
+4. **Set the ČSFD cookie.** Dashboard → Plugins → ČSFD Rating → Settings → paste your csfd.cz
+   cookie into the "ČSFD Cookie" field and save - see
+   [How to get and set the cookie](#how-to-get-and-set-the-cookie) above. Without this, ratings
+   will never be looked up (every request gets blocked by the Anubis challenge).
