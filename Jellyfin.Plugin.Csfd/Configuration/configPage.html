@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>ČSFD Rating</title>
+</head>
+<body>
+    <div id="CsfdConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
+        <div data-role="content">
+            <div class="content-primary">
+                <form id="CsfdConfigForm">
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="Enabled" name="Enabled" type="checkbox" is="emby-checkbox" />
+                            <span>Povolit vyhledávání ČSFD hodnocení</span>
+                        </label>
+                        <div class="fieldDescription">Pokud vypnuto, plugin nebude při refreshi metadat nic dotazovat ani nastavovat.</div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="CacheTtlHours">Platnost cache (hodiny)</label>
+                        <input id="CacheTtlHours" name="CacheTtlHours" type="number" is="emby-input" min="1" />
+                        <div class="fieldDescription">Jak dlouho se má znovupoužívat už nalezené hodnocení pro danou položku, než se zkusí stáhnout znovu. Výchozí je 336 hodin (14 dní).</div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="CsfdSessionCookie">ČSFD Cookie (obchází Anubis ochranu)</label>
+                        <input id="CsfdSessionCookie" name="CsfdSessionCookie" type="text" is="emby-input" />
+                        <div class="fieldDescription">
+                            csfd.cz je chráněné anti-bot ochranou Anubis (proof-of-work JS výzva "Making sure you're not a bot!"),
+                            kterou tenhle plugin (bez prohlížeče/JS enginu) sám o sobě neprojde. Bez platné cookie z reálné
+                            prohlížečové relace se hodnocení pravděpodobně nikdy nenastaví.<br /><br />
+                            <strong>Jak cookie získat:</strong> otevři <code>https://www.csfd.cz</code> v běžném prohlížeči a počkej,
+                            až tě Anubis ochrana pustí dál na normální stránku. Pak otevři DevTools (F12) →
+                            záložka <em>Application</em> (Chrome) nebo <em>Storage</em> (Firefox) → <em>Cookies</em> →
+                            <code>https://www.csfd.cz</code>. Zkopíruj hodnoty <strong>všech</strong> cookies pro tuhle doménu a
+                            slož je do jednoho řetězce ve formátu <code>jmeno1=hodnota1; jmeno2=hodnota2; ...</code> (přesně jak
+                            vypadá HTTP hlavička <code>Cookie</code> v záložce Network u libovolného requestu na csfd.cz - odtud
+                            se to dá i rovnou zkopírovat). Nejdůležitější je cookie, kterou Anubis nastavuje po úspěšném průchodu
+                            výzvou - v době psaní tohoto pluginu se jmenuje <code>techaro.lol-anubis-auth</code> (Anubis je
+                            open-source projekt Techaro a tenhle název cookie je jeho výchozí hodnota, ČSFD ji zjevně
+                            nepřejmenovala) - ale protože se to může kdykoliv změnit, je bezpečnější vložit sem rovnou všechny
+                            cookies najednou.<br /><br />
+                            Tahle relace časem vyprší - podle toho, jak Anubis relace obvykle fungují, to bude řádově
+                            <strong>dny</strong> (jde jen o orientační odhad, ne garantovanou hodnotu). Až hodnocení přestanou
+                            přibývat, zkontroluj log pluginu - pokud tam uvidíš hlášku o vypršelé/neplatné cookie, přijď sem a
+                            vlož novou.
+                        </div>
+                    </div>
+
+                    <div>
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span>Uložit</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <script type="text/javascript">
+            var CsfdConfig = {
+                pluginUniqueId: '200ed2e9-c3b4-4c8a-a8ae-b90fc6b635b8'
+            };
+
+            document.querySelector('#CsfdConfigPage')
+                .addEventListener('pageshow', function () {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(CsfdConfig.pluginUniqueId).then(function (config) {
+                        document.querySelector('#Enabled').checked = config.Enabled;
+                        document.querySelector('#CacheTtlHours').value = config.CacheTtlHours;
+                        document.querySelector('#CsfdSessionCookie').value = config.CsfdSessionCookie;
+                        Dashboard.hideLoadingMsg();
+                    });
+                });
+
+            document.querySelector('#CsfdConfigForm')
+                .addEventListener('submit', function (e) {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(CsfdConfig.pluginUniqueId).then(function (config) {
+                        config.Enabled = document.querySelector('#Enabled').checked;
+                        config.CacheTtlHours = parseInt(document.querySelector('#CacheTtlHours').value, 10) || 336;
+                        config.CsfdSessionCookie = document.querySelector('#CsfdSessionCookie').value;
+                        ApiClient.updatePluginConfiguration(CsfdConfig.pluginUniqueId, config).then(function (result) {
+                            Dashboard.processPluginConfigurationUpdateResult(result);
+                        });
+                    });
+
+                    e.preventDefault();
+                    return false;
+                });
+        </script>
+    </div>
+</body>
+</html>

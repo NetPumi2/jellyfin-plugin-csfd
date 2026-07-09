@@ -1,0 +1,20 @@
+---
+name: "ČSFD Rating"
+guid: "200ed2e9-c3b4-4c8a-a8ae-b90fc6b635b8"
+version: "1.0.0.0"
+targetAbi: "10.11.0.0"
+framework: "net9.0"
+owner: "NetPumi2"
+overview: "Zobrazí ČSFD hodnocení (v %) u filmů a seriálů."
+description: >
+  Při refreshi metadat vyhledá film/seriál na ČSFD podle názvu a roku a jeho procentuální
+  hodnocení uloží jako CriticRating, takže se zobrazí v Jellyfin UI vedle názvu položky
+  (stejně jako Rotten Tomatoes rajčátko). Vyžaduje platnou session cookie z csfd.cz kvůli
+  Anubis anti-bot ochraně - viz README.
+category: "Metadata"
+artifacts:
+- "Jellyfin.Plugin.Csfd.dll"
+- "HtmlAgilityPack.dll"
+changelog: >
+  1.0.0.0
+  - Initial release: ČSFD rating lookup for movies and series via CriticRating.
