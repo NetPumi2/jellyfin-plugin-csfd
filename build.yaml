@@ -2,7 +2,7 @@
 name: "ČSFD Rating"
 guid: "200ed2e9-c3b4-4c8a-a8ae-b90fc6b635b8"
 version: "1.0.0.0"
-targetAbi: "10.11.0.0"
+targetAbi: "10.11.6.0"
 framework: "net9.0"
 owner: "NetPumi2"
 overview: "Zobrazí ČSFD hodnocení (v %) u filmů a seriálů."

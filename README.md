@@ -64,8 +64,9 @@ structure may change over time and break parsing - if that happens, update the s
 
 ## Build
 
-Requires .NET SDK 9.0 (the same version the `Jellyfin.Controller` 10.11.11 package is built
-against - matching the current stable 10.11.x Jellyfin server line).
+Requires .NET SDK 9.0. The `Jellyfin.Controller`/`Jellyfin.Model` NuGet package version in the
+`.csproj` is pinned to match the exact Jellyfin server version this build targets (currently
+`10.11.6`) - see the note on ABI/patch-version compatibility below before bumping it.
 
 ```bash
 dotnet build Jellyfin.Plugin.Csfd.sln
@@ -109,11 +110,22 @@ version attached to a GitHub Release.
 3. Add a new entry to the `versions` array in `manifest.json` (newest first) with that `version`,
    `checksum`, a `sourceUrl` following the pattern
    `https://github.com/NetPumi2/jellyfin-plugin-csfd/releases/download/v{VERSION}/csfd-rating-{VERSION}.zip`,
-   and an updated `changelog`/`timestamp`. `targetAbi` should match the minimum Jellyfin server
-   version this build targets (currently `10.11.0.0`, matching the `Jellyfin.Controller` NuGet
-   version in the `.csproj`).
+   and an updated `changelog`/`timestamp`. `targetAbi` should match the exact `Jellyfin.Controller`
+   NuGet version used in the `.csproj` (currently `10.11.6.0`) - see the note below.
 4. Commit and push `manifest.json` - see **Manual steps** below for creating the matching GitHub
    Release and uploading the zip (that part needs your GitHub login and can't be automated here).
+
+**Important - `targetAbi` is not just a "minimum version" in practice.** Jellyfin's plugin loader
+calls `assembly.GetTypes()` on every plugin DLL at startup; if the plugin was compiled against a
+newer/older `Jellyfin.Controller`/`Jellyfin.Model` than what the running server actually ships,
+even a small API difference between patch releases (e.g. `10.11.6` vs `10.11.11`, same minor
+line) can throw a `TypeLoadException`/`ReflectionTypeLoadException` there, which Jellyfin reports
+as plugin status **NotSupported** - not a targetAbi version-number check failing, an actual binary
+incompatibility. The safe rule: **pin the `Jellyfin.Controller`/`Jellyfin.Model` package versions
+in the `.csproj` to the exact version of the Jellyfin server(s) you're targeting**, and set
+`targetAbi` to that same exact version (`X.Y.Z.0`) rather than a lower "minimum" like `X.Y.0.0`.
+If you need to support multiple server versions, you'd need a separate build (and `manifest.json`
+version entry) per target.
 
 `dist/` and `publish/` are gitignored - only `manifest.json` itself is committed; the zip lives
 solely as a GitHub Release asset, never in git history.
@@ -181,7 +193,7 @@ directory (typically mounted as a volume, e.g. `/config` inside the container). 
      "name": "ČSFD Rating",
      "overview": "Shows the ČSFD rating (in %) for movies and series.",
      "owner": "NetPumi2",
-     "targetAbi": "10.11.0.0",
+     "targetAbi": "10.11.6.0",
      "version": "1.0.0.0",
      "status": 0,
      "autoUpdate": false
