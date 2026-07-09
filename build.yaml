@@ -1,7 +1,7 @@
 ---
 name: "ČSFD Rating"
 guid: "200ed2e9-c3b4-4c8a-a8ae-b90fc6b635b8"
-version: "1.0.0.2"
+version: "1.0.0.3"
 targetAbi: "10.11.6.0"
 framework: "net9.0"
 owner: "NetPumi2"
@@ -15,6 +15,12 @@ artifacts:
 - "Jellyfin.Plugin.Csfd.dll"
 - "HtmlAgilityPack.dll"
 changelog: >
+  1.0.0.3
+  - Fix: implement IHasItemChangeMonitor so a plain "Scan Library" picks up items that never
+    got a ČSFD rating (or whose cached rating expired) without needing a "Replace all metadata"
+    refresh. Custom metadata providers are otherwise skipped for already-imported items unless
+    they report a change themselves.
+
   1.0.0.2
   - Change: store the ČSFD rating as a "ČSFD: NN%" tag instead of CriticRating. CriticRating is
     a single shared field that other rating plugins (e.g. Rotten Tomatoes/OMDb) also write to,

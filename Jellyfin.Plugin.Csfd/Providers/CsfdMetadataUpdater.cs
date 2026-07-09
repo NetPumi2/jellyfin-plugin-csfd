@@ -95,6 +95,45 @@ internal static class CsfdMetadataUpdater
         }
     }
 
+    /// <summary>
+    /// Whether this item is worth handing to <see cref="FetchAsync"/> during a non-full library
+    /// scan: either we have no still-valid cached result for it yet (never looked up, or the
+    /// cache entry expired), or we do have one but the item is missing the tag it should have
+    /// (e.g. because something else replaced its tags).
+    /// </summary>
+    public static bool HasChanged(BaseItem item, ILoggerFactory loggerFactory)
+    {
+        var config = Plugin.Instance?.Configuration;
+        if (config is null || !config.Enabled)
+        {
+            return false;
+        }
+
+        var name = item.Name;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        var year = item.ProductionYear;
+        var cache = CsfdServices.GetCache(loggerFactory);
+        var ttl = TimeSpan.FromHours(Math.Max(1, config.CacheTtlHours));
+
+        var cached = cache.TryGet(name, year, ttl);
+        if (cached is null)
+        {
+            return true;
+        }
+
+        if (!cached.RatingPercent.HasValue)
+        {
+            return false;
+        }
+
+        var expectedTag = $"{CsfdTagPrefix}{cached.RatingPercent.Value}%";
+        return !(item.Tags ?? Array.Empty<string>()).Contains(expectedTag, StringComparer.Ordinal);
+    }
+
     private static ItemUpdateType ApplyResult(BaseItem item, int? ratingPercent, string? csfdUrl)
     {
         var updateType = ItemUpdateType.None;

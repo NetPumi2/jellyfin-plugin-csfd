@@ -103,7 +103,7 @@ This repo is public and is meant to be installed as a custom Jellyfin plugin rep
 by `manifest.json` at the repo root (served via raw.githubusercontent.com) and a `.zip` per
 version attached to a GitHub Release.
 
-1. Bump the version in `Directory.Build.props` (and `build.yaml`) if this isn't `1.0.0.2`.
+1. Bump the version in `Directory.Build.props` (and `build.yaml`) if this isn't `1.0.0.3`.
 2. Build and package the release zip:
 
    ```bash
@@ -180,13 +180,13 @@ directory (typically mounted as a volume, e.g. `/config` inside the container). 
 2. **Create the plugin's subdirectory** (the version must match the one in `meta.json`/`build.yaml`):
 
    ```bash
-   mkdir -p "<Source>/plugins/ČSFD Rating_1.0.0.2"
+   mkdir -p "<Source>/plugins/ČSFD Rating_1.0.0.3"
    ```
 
 3. **Copy the DLL files and meta.json** from `publish/` into that directory:
 
    ```bash
-   cp publish/Jellyfin.Plugin.Csfd.dll publish/HtmlAgilityPack.dll "<Source>/plugins/ČSFD Rating_1.0.0.2/"
+   cp publish/Jellyfin.Plugin.Csfd.dll publish/HtmlAgilityPack.dll "<Source>/plugins/ČSFD Rating_1.0.0.3/"
    ```
 
    `meta.json` (bump `version`/`timestamp` for later releases) - contents:
@@ -194,14 +194,14 @@ directory (typically mounted as a volume, e.g. `/config` inside the container). 
    ```json
    {
      "category": "Metadata",
-     "changelog": "1.0.0.2 - Store the ČSFD rating as a \"ČSFD: NN%\" tag instead of CriticRating.",
+     "changelog": "1.0.0.3 - Fix: implement IHasItemChangeMonitor so a plain Scan Library picks up items without needing a Replace all metadata refresh.",
      "description": "Looks up a movie/series on ČSFD by name and year during a metadata refresh and adds its percentage rating as a \"ČSFD: NN%\" tag.",
      "guid": "200ed2e9-c3b4-4c8a-a8ae-b90fc6b635b8",
      "name": "ČSFD Rating",
      "overview": "Shows the ČSFD rating (in %) for movies and series.",
      "owner": "NetPumi2",
      "targetAbi": "10.11.6.0",
-     "version": "1.0.0.2",
+     "version": "1.0.0.3",
      "status": 0,
      "autoUpdate": false
    }
@@ -225,9 +225,10 @@ directory (typically mounted as a volume, e.g. `/config` inside the container). 
 1. In the plugin's settings, confirm "Enable ČSFD rating lookup" is checked and the cookie field
    is filled in.
 2. In Jellyfin, go to a library with a few movies/series (ideally ones whose ČSFD rating differs
-   noticeably from their IMDb rating, so the change is easy to spot) → **⋮ → Scan Library** (or
-   via **Dashboard → Libraries → (your library) → Scan**, with "Replace all metadata" enabled if
-   you want a fresh refresh even for already-scanned items).
+   noticeably from their IMDb rating, so the change is easy to spot) → **⋮ → Scan Library** (a
+   plain scan is enough as of 1.0.0.3 - see note below - but **Dashboard → Libraries → (your
+   library) → Scan** with "Replace all metadata" enabled works too and is a good way to force an
+   immediate re-check of everything, e.g. right after first installing the plugin).
 3. Once the scan finishes, open a movie's/series's detail page and check that a `ČSFD: NN%` tag
    with a percentage matching that item's ČSFD rating now shows up among its tags (double-check
    manually on csfd.cz that it matches).
@@ -237,6 +238,15 @@ directory (typically mounted as a volume, e.g. `/config` inside the container). 
    - the cookie is missing/expired (a message about the Anubis challenge / refreshing the cookie),
    - the item doesn't have enough ratings on ČSFD yet (`?`),
    - the search didn't find any result (an ambiguous or unusual title).
+
+**Why a plain "Scan Library" didn't work on versions before 1.0.0.3:** Jellyfin only re-runs a
+custom metadata provider for an item that's already been scanned before if that provider reports
+"this item changed" via `IHasItemChangeMonitor` - otherwise it's skipped entirely (to avoid
+needlessly re-running every provider on every scan). Versions before 1.0.0.3 didn't implement
+that interface, so the ČSFD provider only ever ran for brand-new items or during a forced
+"Replace all metadata" refresh. 1.0.0.3 fixes this: it reports a change whenever there's no
+still-valid cached ČSFD result for the item yet (never looked up, or the cache TTL expired), so a
+routine "Scan Library" (or the periodic scheduled library scan) now picks those items up too.
 
 ## Project layout
 
@@ -264,19 +274,19 @@ tests/Jellyfin.Plugin.Csfd.Tests/
 
 ## Manual steps (need your GitHub/Jellyfin login - can't be automated)
 
-To finish publishing v1.0.0.2 and make the plugin catalog installable:
+To finish publishing v1.0.0.3 and make the plugin catalog installable:
 
 1. **Create the GitHub Release.** On GitHub, go to the repo → **Releases → Draft a new release**.
-   - Tag: `v1.0.0.2` (create it on publish, targeting `main`)
-   - Title: e.g. `v1.0.0.2`
-   - Attach `dist/csfd-rating-1.0.0.2.zip` (built by `./scripts/package-release.sh`) under
+   - Tag: `v1.0.0.3` (create it on publish, targeting `main`)
+   - Title: e.g. `v1.0.0.3`
+   - Attach `dist/csfd-rating-1.0.0.3.zip` (built by `./scripts/package-release.sh`) under
      **Attach binaries by dropping them here**.
    - Publish the release. This must produce the download URL already referenced in
      `manifest.json`:
-     `https://github.com/NetPumi2/jellyfin-plugin-csfd/releases/download/v1.0.0.2/csfd-rating-1.0.0.2.zip`
-   - The earlier `v1.0.0.0`/`v1.0.0.1` releases/tags (if you already created them) can be left
-     as-is for history, or deleted - your choice. `manifest.json` now points people at `1.0.0.2`
-     first either way.
+     `https://github.com/NetPumi2/jellyfin-plugin-csfd/releases/download/v1.0.0.3/csfd-rating-1.0.0.3.zip`
+   - The earlier `v1.0.0.0`/`v1.0.0.1`/`v1.0.0.2` releases/tags (if you already created them) can
+     be left as-is for history, or deleted - your choice. `manifest.json` now points people at
+     `1.0.0.3` first either way.
 2. **Add the repository in Jellyfin.** Dashboard → Plugins → Repositories → New Repository:
    - Repository Name: `ČSFD Rating` (or anything)
    - Repository URL: `https://raw.githubusercontent.com/NetPumi2/jellyfin-plugin-csfd/main/manifest.json`
