@@ -1,128 +1,133 @@
 # ČSFD Rating (jellyfin-plugin-csfd)
 
-Jellyfin plugin, který při refreshi metadat dohledá film/seriál na [ČSFD](https://www.csfd.cz)
-podle názvu a roku a jeho procentuální hodnocení uloží jako `CriticRating` - v Jellyfin UI se pak
-zobrazí vedle názvu položky stejně jako Rotten Tomatoes rajčátko (`🍅 63`), jen s hodnotou z ČSFD.
+A Jellyfin plugin that, during a metadata refresh, looks up a movie/series on
+[ČSFD](https://www.csfd.cz) (the Czech-Slovak Film Database) by name and year and stores its
+percentage rating as `CriticRating` - Jellyfin's UI then shows it next to the item's title the
+same way it shows the Rotten Tomatoes tomato (`🍅 63`), just with the ČSFD value instead.
 
-## Důležité: ČSFD je chráněné Anubis anti-bot ochranou
+## Important: ČSFD is protected by the Anubis anti-bot challenge
 
-csfd.cz je za [Anubis](https://github.com/TecharoHQ/anubis) proof-of-work anti-bot ochranou
-("Making sure you're not a bot!"). Obyčejný HTTP request ze serveru (bez JS enginu) tuhle výzvu
-neprojde a dostane jen HTML challenge stránky místo skutečného obsahu.
+csfd.cz sits behind [Anubis](https://github.com/TecharoHQ/anubis), a proof-of-work anti-bot
+challenge ("Making sure you're not a bot!"). A plain server-side HTTP request (with no JS engine)
+cannot pass this challenge and gets back the challenge page's HTML instead of real content.
 
-Tenhle plugin **automatickou výzvu neřeší** (to by byl přesně ten druh detection-evasion bota,
-proti kterému Anubis existuje). Místo toho posílá s každým requestem `Cookie` hlavičku, kterou mu
-nastavíš v konfiguraci pluginu - hodnotu získáš tak, že jednou projdeš Anubis výzvu ve svém
-běžném prohlížeči a zkopíruješ jeho cookies.
+This plugin **does not automate solving the challenge** (that would be exactly the kind of
+bot-detection evasion Anubis exists to stop). Instead, it sends a `Cookie` header on every
+request, using a value you configure in the plugin's settings - you get that value by passing
+the Anubis challenge once in your own regular browser and copying its cookies.
 
-### Jak cookie získat a nastavit
+### How to get and set the cookie
 
-1. Otevři `https://www.csfd.cz` v běžném prohlížeči a počkej, až tě Anubis pustí na normální stránku.
-2. Otevři DevTools (F12) → záložka **Network** → klikni na libovolný request na `csfd.cz` → v
-   Request Headers najdi hlavičku `Cookie` a zkopíruj celou její hodnotu (je to jeden dlouhý
-   řetězec typu `jmeno1=hodnota1; jmeno2=hodnota2; ...`).
-   - Alternativně: DevTools → **Application** (Chrome) / **Storage** (Firefox) → **Cookies** →
-     `https://www.csfd.cz`, a hodnoty poskládej ručně do stejného formátu.
-   - Nejdůležitější je cookie, kterou nastavuje samotný Anubis po úspěšném projití výzvy - v době
-     psaní tohohle pluginu se jmenuje `techaro.lol-anubis-auth` (Anubis je open-source projekt
-     Techaro a tohle je jeho výchozí název cookie, ČSFD ho zjevně nepřejmenovala) - ale protože se
-     to může kdykoliv změnit, je bezpečnější zkopírovat rovnou všechny cookies pro doménu.
-3. V Jellyfinu: **Dashboard → Plugins → ČSFD Rating → Settings**, vlož celý řetězec do pole
-   "ČSFD Cookie" a ulož.
+1. Open `https://www.csfd.cz` in a regular browser and wait for Anubis to let you through to the
+   real page.
+2. Open DevTools (F12) → **Network** tab → click any request to `csfd.cz` → find the `Cookie`
+   header under Request Headers and copy its whole value (one long string like
+   `name1=value1; name2=value2; ...`).
+   - Alternatively: DevTools → **Application** (Chrome) / **Storage** (Firefox) → **Cookies** →
+     `https://www.csfd.cz`, and assemble the values into the same format by hand.
+   - The most important one is the cookie Anubis itself sets after a successful challenge - at
+     the time this plugin was written it's called `techaro.lol-anubis-auth` (Anubis is an
+     open-source project by Techaro and this is its default cookie name, which ČSFD apparently
+     hasn't renamed) - but since that could change at any time, it's safer to just copy every
+     cookie for the domain.
+3. In Jellyfin: **Dashboard → Plugins → ČSFD Rating → Settings**, paste the whole string into the
+   "ČSFD Cookie" field and save.
 
-Tahle relace časem vyprší - podle toho, jak Anubis relace obvykle fungují, půjde řádově o **dny**
-(je to jen orientační odhad, ne garantovaná hodnota, ČSFD si dobu platnosti může nastavit jinak).
-Až hodnocení přestanou přibývat, zkontroluj Jellyfin log - plugin do něj při vypršelé/neplatné
-cookie napíše jasnou hlášku "ČSFD cookie vypršela nebo je neplatná - obnov ji v nastavení pluginu
-ČSFD Rating", a stačí zopakovat kroky výše.
+This session will eventually expire - based on how Anubis sessions typically work, that's likely
+on the order of **days** (this is only a rough estimate, not a guaranteed value; ČSFD may
+configure its own expiry differently). Once ratings stop being picked up, check the Jellyfin log -
+when the cookie is expired/invalid, the plugin logs a clear message ("ČSFD cookie has expired or
+is invalid - refresh it in the ČSFD Rating plugin settings"), and you just repeat the steps above.
 
-## Jak plugin funguje
+## How the plugin works
 
-1. Pro položku (`Movie`/`Series`) vezme `item.Name` a `item.ProductionYear` a sestaví vyhledávací
-   URL `https://www.csfd.cz/hledat/?q={název}+{rok}`.
-2. Stáhne HTML (s cookie z konfigurace) a v sekci "Filmy" (nebo "Seriály" pro seriály) vezme první
-   výsledek.
-3. Stáhne stránku toho filmu/seriálu a z `<div class="film-rating-average">63%</div>` vytáhne
-   procento. Pokud ČSFD ukazuje `?` (nedost hodnocení), rating se nenastaví.
-4. Nastaví `item.CriticRating` na tuhle hodnotu (0-100 škála, 1:1 s ČSFD procenty) a ČSFD URL uloží
-   jako provider id (`Csfd`) na položce.
-5. Výsledek (i "nenalezeno") se cachuje podle názvu+roku na dobu nastavenou v konfiguraci (výchozí
-   14 dní / 336 hodin), takže se ČSFD nescrapuje znovu při každém refreshi.
+1. For an item (`Movie`/`Series`), it takes `item.Name` and `item.ProductionYear` and builds the
+   search URL `https://www.csfd.cz/hledat/?q={name}+{year}`.
+2. It downloads the HTML (with the cookie from configuration) and takes the first result under
+   the "Filmy" (movies) or "Seriály" (series) section, matching the item's type.
+3. It downloads that movie's/series's page and extracts the percentage from
+   `<div class="film-rating-average">63%</div>`. If ČSFD shows `?` (not enough ratings yet), no
+   rating is set.
+4. It sets `item.CriticRating` to that value (0-100 scale, a 1:1 match for ČSFD's percentage) and
+   stores the ČSFD URL as a provider id (`Csfd`) on the item.
+5. The result (including "not found") is cached by name+year for the duration configured in
+   settings (default 14 days / 336 hours), so ČSFD isn't re-scraped on every single refresh.
 
-Detekce chyb: chybějící/neplatná cookie, timeout, nenalezený výsledek nebo změna struktury ČSFD
-stránky se jen zaloguje (`ILogger`) - položka zůstane bez `CriticRating` a refresh knihovny
-pokračuje dál, plugin nikdy nespadne kvůli jedné položce.
+Error handling: a missing/invalid cookie, a timeout, no matching search result, or a change in
+ČSFD's page structure are all just logged (`ILogger`) - the item is left without `CriticRating`
+and the library refresh keeps going; the plugin never crashes over a single item.
 
-**Známé limity:** bere se první výsledek vyhledávání - u nejednoznačných názvů (více filmů se
-stejným jménem a rokem, remaky apod.) se může přiřadit špatná položka. Struktura ČSFD stránek se
-může časem změnit a rozbít parsing - v takovém případě uprav selektory v
+**Known limitations:** the first search result is used as-is - for ambiguous titles (several
+movies with the same name and year, remakes, etc.) this can pick the wrong item. ČSFD's page
+structure may change over time and break parsing - if that happens, update the selectors in
 `Jellyfin.Plugin.Csfd/Csfd/CsfdHtmlParser.cs`.
 
 ## Build
 
-Vyžaduje .NET SDK 9.0 (stejná verze, se kterou je postavený balíček `Jellyfin.Controller`
-10.11.11 - odpovídá aktuální stabilní řadě Jellyfin serveru 10.11.x).
+Requires .NET SDK 9.0 (the same version the `Jellyfin.Controller` 10.11.11 package is built
+against - matching the current stable 10.11.x Jellyfin server line).
 
 ```bash
 dotnet build Jellyfin.Plugin.Csfd.sln
 ```
 
-Testy:
+Tests:
 
 ```bash
 dotnet test tests/Jellyfin.Plugin.Csfd.Tests/Jellyfin.Plugin.Csfd.Tests.csproj
 ```
 
-Publish (vytvoří `.dll` soubory pro instalaci):
+Publish (produces the `.dll` files needed for installation):
 
 ```bash
 dotnet publish Jellyfin.Plugin.Csfd/Jellyfin.Plugin.Csfd.csproj -c Release -o publish
 ```
 
-V `publish/` budou mj. tyhle dva soubory, které plugin potřebuje (ostatní - `.pdb`, `.xml`,
-`.deps.json` - jsou volitelné, Jellyfin je nepotřebuje):
+Among the output in `publish/`, the plugin needs these two files (the rest - `.pdb`, `.xml`,
+`.deps.json` - are optional, Jellyfin doesn't need them):
 
 - `Jellyfin.Plugin.Csfd.dll`
 - `HtmlAgilityPack.dll`
 
-## Instalace do Jellyfinu (Docker na pinas)
+## Installing on Jellyfin (Docker on pinas)
 
-Jellyfin načítá pluginy z podadresářů `plugins/<Název>_<verze>/` uvnitř svého config adresáře
-(typicky namountovaného jako volume, např. `/config` uvnitř kontejneru). Postup:
+Jellyfin loads plugins from subdirectories `plugins/<Name>_<version>/` inside its config
+directory (typically mounted as a volume, e.g. `/config` inside the container). Steps:
 
-1. **Najdi cestu k plugins adresáři.** Na `pinas` (přes SSH jako `salek`) zjisti, kam je
-   namountovaný Jellyfin config volume:
+1. **Find the plugins directory path.** On `pinas` (over SSH as `salek`), find where the Jellyfin
+   config volume is mounted:
 
    ```bash
-   docker inspect <jméno_kontejneru_jellyfin> --format '{{ range .Mounts }}{{ .Source }} -> {{ .Destination }}{{ "\n" }}{{ end }}'
+   docker inspect <jellyfin_container_name> --format '{{ range .Mounts }}{{ .Source }} -> {{ .Destination }}{{ "\n" }}{{ end }}'
    ```
 
-   Hledej řádek, kde `Destination` je `/config` (nebo podobně) - `Source` je cesta na hostu
-   (pinas), kam se dá zapisovat přímo, aniž bys musel kopírovat dovnitř kontejneru. Uvnitř
-   config adresáře pak plugins bývají v `plugins/` (tzn. `<Source>/plugins/`).
+   Look for the line where `Destination` is `/config` (or similar) - `Source` is the path on the
+   host (pinas) you can write to directly, without needing to copy files into the container.
+   Inside the config directory, plugins usually live under `plugins/` (i.e.
+   `<Source>/plugins/`).
 
-2. **Vytvoř podadresář pluginu** (verze musí sedět s tou v `meta.json`/`build.yaml`):
+2. **Create the plugin's subdirectory** (the version must match the one in `meta.json`/`build.yaml`):
 
    ```bash
    mkdir -p "<Source>/plugins/ČSFD Rating_1.0.0.0"
    ```
 
-3. **Zkopíruj DLL soubory a meta.json** z `publish/` do tohohle adresáře:
+3. **Copy the DLL files and meta.json** from `publish/` into that directory:
 
    ```bash
    cp publish/Jellyfin.Plugin.Csfd.dll publish/HtmlAgilityPack.dll "<Source>/plugins/ČSFD Rating_1.0.0.0/"
    ```
 
-   `meta.json` (uprav `version`/`timestamp` při dalších verzích) - obsah:
+   `meta.json` (bump `version`/`timestamp` for later releases) - contents:
 
    ```json
    {
      "category": "Metadata",
      "changelog": "1.0.0.0 - Initial release: ČSFD rating lookup for movies and series via CriticRating.",
-     "description": "Při refreshi metadat vyhledá film/seriál na ČSFD podle názvu a roku a jeho procentuální hodnocení uloží jako CriticRating.",
+     "description": "Looks up a movie/series on ČSFD by name and year during a metadata refresh and stores its percentage rating as CriticRating.",
      "guid": "200ed2e9-c3b4-4c8a-a8ae-b90fc6b635b8",
      "name": "ČSFD Rating",
-     "overview": "Zobrazí ČSFD hodnocení (v %) u filmů a seriálů.",
+     "overview": "Shows the ČSFD rating (in %) for movies and series.",
      "owner": "NetPumi2",
      "targetAbi": "10.11.0.0",
      "version": "1.0.0.0",
@@ -131,56 +136,57 @@ Jellyfin načítá pluginy z podadresářů `plugins/<Název>_<verze>/` uvnitř 
    }
    ```
 
-   (Pole `assemblies` se dá vynechat - když chybí nebo je prázdné, Jellyfin automaticky nahraje
-   všechny `.dll` soubory v adresáři pluginu, takže se použije jak `Jellyfin.Plugin.Csfd.dll`, tak
-   `HtmlAgilityPack.dll`.)
+   (The `assemblies` field can be omitted - when it's missing or empty, Jellyfin automatically
+   loads every `.dll` file in the plugin's directory, so both `Jellyfin.Plugin.Csfd.dll` and
+   `HtmlAgilityPack.dll` get picked up.)
 
-4. **Restartuj kontejner Jellyfin**, ať se plugin načte:
+4. **Restart the Jellyfin container** so the plugin gets loaded:
 
    ```bash
-   docker restart <jméno_kontejneru_jellyfin>
+   docker restart <jellyfin_container_name>
    ```
 
-5. Jdi do **Dashboard → Plugins**, ověř že se "ČSFD Rating" objevil a je aktivní, otevři jeho
-   **Settings** a nastav cookie podle návodu výše.
+5. Go to **Dashboard → Plugins**, confirm "ČSFD Rating" shows up and is active, open its
+   **Settings**, and set the cookie as described above.
 
-## Ruční ověření po nasazení
+## Manual verification after deployment
 
-1. V nastavení pluginu zkontroluj, že je zaškrtnuté "Povolit vyhledávání ČSFD hodnocení" a že je
-   vyplněná cookie.
-2. V Jellyfinu jdi do knihovny s pár filmy/seriály (ideálně takovými, co mají výrazně odlišné ČSFD
-   hodnocení od IMDb, ať je změna dobře vidět) → **⋮ → Skenovat knihovnu médií** (nebo přes
-   **Dashboard → Knihovny → (tvoje knihovna) → Skenovat** s zapnutým "Vynutit znovu stažení
-   metadat obrázků" pokud chceš čerstvý refresh i pro už naskenované položky).
-3. Po dokončení skenu otevři detail filmu/seriálu a zkontroluj, že se u něj objevila
-   rajčátková ikona (🍅) s procentem odpovídajícím ČSFD hodnocení dané položky (zkontroluj ručně
-   na csfd.cz, že sedí).
-4. Pokud se rating neobjevil, zkontroluj Jellyfin log (**Dashboard → Logs** nebo přímo soubor v
-   config adresáři) a hledej řádky od `Jellyfin.Plugin.Csfd` - nejčastější příčiny:
-   - cookie chybí/vypršela (hláška o Anubis ochraně / obnovení cookie),
-   - položka nemá na ČSFD dost hodnocení (`?`),
-   - vyhledávání nenašlo žádný výsledek (nejednoznačný/neobvyklý název).
+1. In the plugin's settings, confirm "Enable ČSFD rating lookup" is checked and the cookie field
+   is filled in.
+2. In Jellyfin, go to a library with a few movies/series (ideally ones whose ČSFD rating differs
+   noticeably from their IMDb rating, so the change is easy to spot) → **⋮ → Scan Library** (or
+   via **Dashboard → Libraries → (your library) → Scan**, with "Replace all metadata" enabled if
+   you want a fresh refresh even for already-scanned items).
+3. Once the scan finishes, open a movie's/series's detail page and check that a tomato icon (🍅)
+   with a percentage matching that item's ČSFD rating now shows up (double-check manually on
+   csfd.cz that it matches).
+4. If the rating didn't show up, check the Jellyfin log (**Dashboard → Logs**, or the log file
+   directly in the config directory) for lines from `Jellyfin.Plugin.Csfd` - the most common
+   causes are:
+   - the cookie is missing/expired (a message about the Anubis challenge / refreshing the cookie),
+   - the item doesn't have enough ratings on ČSFD yet (`?`),
+   - the search didn't find any result (an ambiguous or unusual title).
 
-## Struktura projektu
+## Project layout
 
 ```
 Jellyfin.Plugin.Csfd/
-  Plugin.cs                        - vstupní bod pluginu (BasePlugin<PluginConfiguration>)
+  Plugin.cs                        - plugin entry point (BasePlugin<PluginConfiguration>)
   Configuration/
     PluginConfiguration.cs         - Enabled, CacheTtlHours, CsfdSessionCookie
-    configPage.html                - konfigurační stránka v Dashboardu
+    configPage.html                - the Dashboard settings page
   Csfd/
-    CsfdClient.cs                  - HTTP volání na csfd.cz (přes IHttpClientFactory)
-    CsfdHtmlParser.cs              - čistá parsing logika (HtmlAgilityPack), bez I/O - testovatelná
-    CsfdCache.cs / CsfdCacheEntry.cs - JSON file cache s TTL
-    CsfdServices.cs                - sdílená instance klienta/cache pro oba providery
+    CsfdClient.cs                  - HTTP calls to csfd.cz (via IHttpClientFactory)
+    CsfdHtmlParser.cs              - pure parsing logic (HtmlAgilityPack), no I/O - unit-testable
+    CsfdCache.cs / CsfdCacheEntry.cs - JSON file cache with TTL
+    CsfdServices.cs                - shared client/cache instance for both providers
     CsfdItemKind.cs / CsfdLookupResult.cs
   Providers/
     CsfdMovieProvider.cs           - ICustomMetadataProvider<Movie>
     CsfdSeriesProvider.cs          - ICustomMetadataProvider<Series>
-    CsfdMetadataUpdater.cs         - sdílená logika cache→lookup→apply pro oba providery
+    CsfdMetadataUpdater.cs         - shared cache→lookup→apply logic for both providers
 tests/Jellyfin.Plugin.Csfd.Tests/
-  CsfdHtmlParserTests.cs           - xUnit testy nad reálnými HTML fixture soubory
-  Fixtures/                        - uložené ukázky ČSFD HTML (výsledky hledání, detail filmu,
-                                     Anubis challenge stránka) pro testování bez síťového přístupu
+  CsfdHtmlParserTests.cs           - xUnit tests against real HTML fixture files
+  Fixtures/                        - saved ČSFD HTML samples (search results, film detail,
+                                     Anubis challenge page) for testing without network access
 ```
