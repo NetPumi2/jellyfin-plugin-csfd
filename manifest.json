@@ -8,12 +8,20 @@
     "category": "Metadata",
     "versions": [
       {
-        "version": "1.0.0.0",
-        "changelog": "Initial release: ČSFD rating lookup for movies and series via CriticRating. Built against Jellyfin.Controller/Jellyfin.Model 10.11.6 to match the targetAbi exactly (an earlier build against 10.11.11 caused a NotSupported/TypeLoadException on 10.11.6 servers due to a binary incompatibility between patch versions).",
+        "version": "1.0.0.1",
+        "changelog": "Fix: build against Jellyfin.Controller/Jellyfin.Model 10.11.6 to match the target server's ABI exactly. The 1.0.0.0 build (against 10.11.11) caused a NotSupported/TypeLoadException on 10.11.6 servers due to a binary incompatibility between patch versions.",
         "targetAbi": "10.11.6.0",
+        "sourceUrl": "https://github.com/NetPumi2/jellyfin-plugin-csfd/releases/download/v1.0.0.1/csfd-rating-1.0.0.1.zip",
+        "checksum": "8e8f408d1622f75b3ca3b86076eead27",
+        "timestamp": "2026-07-09T20:43:03Z"
+      },
+      {
+        "version": "1.0.0.0",
+        "changelog": "Initial release: ČSFD rating lookup for movies and series via CriticRating. Note: this build targeted Jellyfin.Controller/Jellyfin.Model 10.11.11 and causes a NotSupported/TypeLoadException on 10.11.6 servers - use 1.0.0.1 instead.",
+        "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/NetPumi2/jellyfin-plugin-csfd/releases/download/v1.0.0.0/csfd-rating-1.0.0.0.zip",
-        "checksum": "52f9a541d8c7e63acd292b7b3091f772",
-        "timestamp": "2026-07-09T20:40:14Z"
+        "checksum": "f1a96a5f9efb4d054242ff94ea8fdfa8",
+        "timestamp": "2026-07-09T20:22:56Z"
       }
     ]
   }

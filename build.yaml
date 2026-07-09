@@ -1,7 +1,7 @@
 ---
 name: "ČSFD Rating"
 guid: "200ed2e9-c3b4-4c8a-a8ae-b90fc6b635b8"
-version: "1.0.0.0"
+version: "1.0.0.1"
 targetAbi: "10.11.6.0"
 framework: "net9.0"
 owner: "NetPumi2"
@@ -16,5 +16,10 @@ artifacts:
 - "Jellyfin.Plugin.Csfd.dll"
 - "HtmlAgilityPack.dll"
 changelog: >
+  1.0.0.1
+  - Fix: build against Jellyfin.Controller/Jellyfin.Model 10.11.6 to match the target server's
+    ABI exactly. The 1.0.0.0 build (against 10.11.11) caused a NotSupported/TypeLoadException
+    on 10.11.6 servers due to a binary incompatibility between patch versions.
+
   1.0.0.0
   - Initial release: ČSFD rating lookup for movies and series via CriticRating.

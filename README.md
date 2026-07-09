@@ -96,7 +96,7 @@ This repo is public and is meant to be installed as a custom Jellyfin plugin rep
 by `manifest.json` at the repo root (served via raw.githubusercontent.com) and a `.zip` per
 version attached to a GitHub Release.
 
-1. Bump the version in `Directory.Build.props` (and `build.yaml`) if this isn't `1.0.0.0`.
+1. Bump the version in `Directory.Build.props` (and `build.yaml`) if this isn't `1.0.0.1`.
 2. Build and package the release zip:
 
    ```bash
@@ -173,13 +173,13 @@ directory (typically mounted as a volume, e.g. `/config` inside the container). 
 2. **Create the plugin's subdirectory** (the version must match the one in `meta.json`/`build.yaml`):
 
    ```bash
-   mkdir -p "<Source>/plugins/ČSFD Rating_1.0.0.0"
+   mkdir -p "<Source>/plugins/ČSFD Rating_1.0.0.1"
    ```
 
 3. **Copy the DLL files and meta.json** from `publish/` into that directory:
 
    ```bash
-   cp publish/Jellyfin.Plugin.Csfd.dll publish/HtmlAgilityPack.dll "<Source>/plugins/ČSFD Rating_1.0.0.0/"
+   cp publish/Jellyfin.Plugin.Csfd.dll publish/HtmlAgilityPack.dll "<Source>/plugins/ČSFD Rating_1.0.0.1/"
    ```
 
    `meta.json` (bump `version`/`timestamp` for later releases) - contents:
@@ -187,14 +187,14 @@ directory (typically mounted as a volume, e.g. `/config` inside the container). 
    ```json
    {
      "category": "Metadata",
-     "changelog": "1.0.0.0 - Initial release: ČSFD rating lookup for movies and series via CriticRating.",
+     "changelog": "1.0.0.1 - Fix: build against Jellyfin.Controller/Jellyfin.Model 10.11.6 to match the target server's ABI exactly.",
      "description": "Looks up a movie/series on ČSFD by name and year during a metadata refresh and stores its percentage rating as CriticRating.",
      "guid": "200ed2e9-c3b4-4c8a-a8ae-b90fc6b635b8",
      "name": "ČSFD Rating",
      "overview": "Shows the ČSFD rating (in %) for movies and series.",
      "owner": "NetPumi2",
      "targetAbi": "10.11.6.0",
-     "version": "1.0.0.0",
+     "version": "1.0.0.1",
      "status": 0,
      "autoUpdate": false
    }
@@ -257,16 +257,19 @@ tests/Jellyfin.Plugin.Csfd.Tests/
 
 ## Manual steps (need your GitHub/Jellyfin login - can't be automated)
 
-To finish publishing v1.0.0.0 and make the plugin catalog installable:
+To finish publishing v1.0.0.1 and make the plugin catalog installable:
 
 1. **Create the GitHub Release.** On GitHub, go to the repo → **Releases → Draft a new release**.
-   - Tag: `v1.0.0.0` (create it on publish, targeting `main`)
-   - Title: e.g. `v1.0.0.0`
-   - Attach `dist/csfd-rating-1.0.0.0.zip` (built by `./scripts/package-release.sh`) under
+   - Tag: `v1.0.0.1` (create it on publish, targeting `main`)
+   - Title: e.g. `v1.0.0.1`
+   - Attach `dist/csfd-rating-1.0.0.1.zip` (built by `./scripts/package-release.sh`) under
      **Attach binaries by dropping them here**.
    - Publish the release. This must produce the download URL already referenced in
      `manifest.json`:
-     `https://github.com/NetPumi2/jellyfin-plugin-csfd/releases/download/v1.0.0.0/csfd-rating-1.0.0.0.zip`
+     `https://github.com/NetPumi2/jellyfin-plugin-csfd/releases/download/v1.0.0.1/csfd-rating-1.0.0.1.zip`
+   - The earlier `v1.0.0.0` release/tag (if you already created it) only ever produced a build
+     that fails as `NotSupported` on your server - you can leave it as-is for history, or delete
+     it, your choice. `manifest.json` now points people at `1.0.0.1` first either way.
 2. **Add the repository in Jellyfin.** Dashboard → Plugins → Repositories → New Repository:
    - Repository Name: `ČSFD Rating` (or anything)
    - Repository URL: `https://raw.githubusercontent.com/NetPumi2/jellyfin-plugin-csfd/main/manifest.json`
