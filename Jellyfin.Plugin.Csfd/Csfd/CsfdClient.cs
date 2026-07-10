@@ -145,7 +145,7 @@ public class CsfdClient
     private void LogAnubisBlocked(string url)
     {
         _logger.LogWarning(
-            "ČSFD cookie vypršela nebo je neplatná - obnov ji v nastavení pluginu ČSFD Rating (Dashboard -> Plugins -> ČSFD Rating). Anubis ochrana zablokovala request na {Url}.",
+            "ČSFD: ANUBIS CHALLENGE DETECTED na {Url} - cookie vypršela nebo je neplatná. Obnov ji v nastavení pluginu ČSFD Rating (Dashboard -> Plugins -> ČSFD Rating).",
             url);
     }
 
@@ -155,15 +155,30 @@ public class CsfdClient
 
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.UserAgent.ParseAdd(UserAgent);
+        request.Headers.Accept.ParseAdd("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
         request.Headers.AcceptLanguage.ParseAdd("cs-CZ,cs;q=0.9,en;q=0.8");
 
         if (!string.IsNullOrWhiteSpace(sessionCookie))
         {
             request.Headers.TryAddWithoutValidation("Cookie", sessionCookie);
+            _logger.LogInformation("ČSFD: request na {Url} odesílán s nastavenou Cookie hlavičkou.", url);
+        }
+        else
+        {
+            _logger.LogInformation("ČSFD: request na {Url} odesílán BEZ Cookie hlavičky (v konfiguraci není nic nastaveno).", url);
         }
 
         using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        var html = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+        _logger.LogInformation(
+            "ČSFD: odpověď z {Url} - HTTP {StatusCode}, délka {Length} znaků. Prvních 500 znaků: {Snippet}",
+            url,
+            (int)response.StatusCode,
+            html.Length,
+            html.Length > 500 ? html[..500] : html);
+
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        return html;
     }
 }

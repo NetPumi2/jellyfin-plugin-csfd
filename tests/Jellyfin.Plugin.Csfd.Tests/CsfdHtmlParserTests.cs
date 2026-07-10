@@ -74,6 +74,20 @@ public class CsfdHtmlParserTests
     }
 
     [Fact]
+    public void FindFirstResultUrl_FindsResult_WithMinimalHeaderMarkupAndNoSpecificInnerClasses()
+    {
+        // Regression test: the parser must not depend on specific inner class names like
+        // "film-title-nooverflow"/"film-title-name" - only on the outer
+        // <article class="... article-poster ...·"> wrapper and the "/film/{id}-" href shape,
+        // since those inner classes can (and did) drift without notice.
+        var html = ReadFixture("search-results-minimal-header-markup.html");
+
+        var url = CsfdHtmlParser.FindFirstResultUrl(html, CsfdItemKind.Movie, 2018);
+
+        Assert.Equal("/film/303030-robin-hood/", url);
+    }
+
+    [Fact]
     public void FindFirstResultUrl_ReturnsNull_WhenSectionMissing()
     {
         var html = ReadFixture("search-results-no-movies.html");

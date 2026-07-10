@@ -109,7 +109,7 @@ This repo is public and is meant to be installed as a custom Jellyfin plugin rep
 by `manifest.json` at the repo root (served via raw.githubusercontent.com) and a `.zip` per
 version attached to a GitHub Release.
 
-1. Bump the version in `Directory.Build.props` (and `build.yaml`) if this isn't `1.0.0.4`.
+1. Bump the version in `Directory.Build.props` (and `build.yaml`) if this isn't `1.0.0.5`.
 2. Build and package the release zip:
 
    ```bash
@@ -186,13 +186,13 @@ directory (typically mounted as a volume, e.g. `/config` inside the container). 
 2. **Create the plugin's subdirectory** (the version must match the one in `meta.json`/`build.yaml`):
 
    ```bash
-   mkdir -p "<Source>/plugins/ČSFD Rating_1.0.0.4"
+   mkdir -p "<Source>/plugins/ČSFD Rating_1.0.0.5"
    ```
 
 3. **Copy the DLL files and meta.json** from `publish/` into that directory:
 
    ```bash
-   cp publish/Jellyfin.Plugin.Csfd.dll publish/HtmlAgilityPack.dll "<Source>/plugins/ČSFD Rating_1.0.0.4/"
+   cp publish/Jellyfin.Plugin.Csfd.dll publish/HtmlAgilityPack.dll "<Source>/plugins/ČSFD Rating_1.0.0.5/"
    ```
 
    `meta.json` (bump `version`/`timestamp` for later releases) - contents:
@@ -200,14 +200,14 @@ directory (typically mounted as a volume, e.g. `/config` inside the container). 
    ```json
    {
      "category": "Metadata",
-     "changelog": "1.0.0.4 - Fix: prefer the search result matching the item's year; add detailed Info-level logging.",
+     "changelog": "1.0.0.5 - Fix: match on the outer article-poster wrapper and /film/{id}- href shape instead of brittle inner class names; add request/response diagnostics.",
      "description": "Looks up a movie/series on ČSFD by name and year during a metadata refresh and adds its percentage rating as a \"ČSFD: NN%\" tag.",
      "guid": "200ed2e9-c3b4-4c8a-a8ae-b90fc6b635b8",
      "name": "ČSFD Rating",
      "overview": "Shows the ČSFD rating (in %) for movies and series.",
      "owner": "NetPumi2",
      "targetAbi": "10.11.6.0",
-     "version": "1.0.0.4",
+     "version": "1.0.0.5",
      "status": 0,
      "autoUpdate": false
    }
@@ -274,8 +274,9 @@ host path you found under **Installing on Jellyfin** above, e.g. via `docker ins
    confirm you see the "Settings saved" confirmation toast.
 
 2. **What does the log say happened for that specific item?** As of 1.0.0.4 every step logs at
-   **Info** level (not just Debug/Warning), so it's visible without turning on verbose logging.
-   If Jellyfin runs in Docker, tail the container's own logs and filter for the plugin:
+   **Info** level (not just Debug/Warning), so it's visible without turning on verbose logging;
+   1.0.0.5 added full request/response diagnostics on top of that. If Jellyfin runs in Docker,
+   tail the container's own logs and filter for the plugin:
 
    ```bash
    docker logs -f --since 10m <jellyfin_container_name> 2>&1 | grep -i "csfd"
@@ -289,10 +290,18 @@ host path you found under **Installing on Jellyfin** above, e.g. via `docker ins
      nothing needed refetching; see the cache check below).
    - `ČSFD: search URL pro 'Roofman' (2025): https://www.csfd.cz/hledat/?q=Roofman+2025` - the
      exact URL requested.
+   - `ČSFD: request na ... odesílán s nastavenou Cookie hlavičkou.` (or "BEZ Cookie hlavičky" if
+     nothing is configured) - confirms whether the cookie was actually attached to this request.
+   - `ČSFD: odpověď z ... - HTTP {status}, délka {N} znaků. Prvních 500 znaků: ...` - the raw
+     response. If this doesn't look like a real ČSFD results page (e.g. it's short, or clearly an
+     error/interstitial page), that's the actual problem, regardless of what happens next.
+   - A warning containing `ANUBIS CHALLENGE DETECTED` means ČSFD served its anti-bot challenge
+     instead of real content - the cookie is missing/expired/invalid; go back to step 1.
    - Either `ČSFD: nalezený odkaz pro 'Roofman' (2025): https://www.csfd.cz/film/...` or
-     `ČSFD: odkaz nenalezen pro 'Roofman' (2025) - žádný výsledek v sekci vyhledávání.`
-   - A warning containing `Anubis ochrana zablokovala request` means the cookie is missing/expired
-     - go back to step 1.
+     `ČSFD: odkaz nenalezen pro 'Roofman' (2025) - žádný výsledek v sekci vyhledávání.` - if this
+     says "nenalezen" even though the response snippet above clearly shows real search results
+     with matches, the HTML selectors in `CsfdHtmlParser` are out of date again; compare the
+     snippet against the current selectors (see point 4 below) and open an issue/adjust them.
    - Either `ČSFD: nalezené hodnocení pro 'Roofman' (2025): NN%` or a line explaining why not
      (rating element missing / shows "?").
    - Finally `ČSFD: Tag přidán pro 'Roofman': "ČSFD: NN%"`, or `ČSFD: Tag NEpřidán pro '...', důvod: ...`
@@ -316,10 +325,15 @@ host path you found under **Installing on Jellyfin** above, e.g. via `docker ins
 4. **Does the ČSFD search actually return the right film for this title/year?** Open
    `https://www.csfd.cz/hledat/?q=Roofman+2025` yourself in a browser (same query the plugin
    builds) and confirm the first result in the "Filmy" section for that year is the film you
-   expect - ČSFD sometimes lists several unrelated titles sharing a name. As of 1.0.0.4 the plugin
-   matches on year (see **How the plugin works** above), but if ČSFD's HTML structure changes
-   this could still silently break; the log lines from step 2 tell you exactly which URL it
-   actually picked so you can compare.
+   expect - ČSFD sometimes lists several unrelated titles sharing a name; the plugin prefers the
+   result whose year matches (since 1.0.0.4), falling back to the first one otherwise (see **How
+   the plugin works** above). The actual result parsing matches on the outer
+   `<article class="... article-poster ...">` wrapper and the `/film/{id}-` href shape rather than
+   any specific inner class name (since 1.0.0.5 - an earlier version anchored on inner classes
+   like `film-title-nooverflow`/`film-title-name` that turned out to be the wrong thing to depend
+   on and made every single search come back empty). If ČSFD's markup changes again, the log
+   lines from step 2 show you the raw HTML snippet to compare against
+   `Jellyfin.Plugin.Csfd/Csfd/CsfdHtmlParser.cs`.
 
 ## Project layout
 
@@ -347,19 +361,19 @@ tests/Jellyfin.Plugin.Csfd.Tests/
 
 ## Manual steps (need your GitHub/Jellyfin login - can't be automated)
 
-To finish publishing v1.0.0.4 and make the plugin catalog installable:
+To finish publishing v1.0.0.5 and make the plugin catalog installable:
 
 1. **Create the GitHub Release.** On GitHub, go to the repo → **Releases → Draft a new release**.
-   - Tag: `v1.0.0.4` (create it on publish, targeting `main`)
-   - Title: e.g. `v1.0.0.4`
-   - Attach `dist/csfd-rating-1.0.0.4.zip` (built by `./scripts/package-release.sh`) under
+   - Tag: `v1.0.0.5` (create it on publish, targeting `main`)
+   - Title: e.g. `v1.0.0.5`
+   - Attach `dist/csfd-rating-1.0.0.5.zip` (built by `./scripts/package-release.sh`) under
      **Attach binaries by dropping them here**.
    - Publish the release. This must produce the download URL already referenced in
      `manifest.json`:
-     `https://github.com/NetPumi2/jellyfin-plugin-csfd/releases/download/v1.0.0.4/csfd-rating-1.0.0.4.zip`
-   - The earlier `v1.0.0.0`/`v1.0.0.1`/`v1.0.0.2`/`v1.0.0.3` releases/tags (if you already created
-     them) can be left as-is for history, or deleted - your choice. `manifest.json` now points
-     people at `1.0.0.4` first either way.
+     `https://github.com/NetPumi2/jellyfin-plugin-csfd/releases/download/v1.0.0.5/csfd-rating-1.0.0.5.zip`
+   - The earlier `v1.0.0.0`/`v1.0.0.1`/`v1.0.0.2`/`v1.0.0.3`/`v1.0.0.4` releases/tags (if you
+     already created them) can be left as-is for history, or deleted - your choice.
+     `manifest.json` now points people at `1.0.0.5` first either way.
 2. **Add the repository in Jellyfin.** Dashboard → Plugins → Repositories → New Repository:
    - Repository Name: `ČSFD Rating` (or anything)
    - Repository URL: `https://raw.githubusercontent.com/NetPumi2/jellyfin-plugin-csfd/main/manifest.json`

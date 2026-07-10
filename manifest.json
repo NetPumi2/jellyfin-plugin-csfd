@@ -8,6 +8,14 @@
     "category": "Metadata",
     "versions": [
       {
+        "version": "1.0.0.5",
+        "changelog": "Fix: search result parsing now matches on the outer <article class=\"... article-poster ...\"> wrapper and the \"/film/{id}-\" href shape instead of specific inner class names, which turned out to be the wrong/brittle thing to anchor on and caused every search (even unambiguous ones) to report no result found. Also adds detailed request/response diagnostics: HTTP status, response length, first 500 characters of every fetched page, an explicit ANUBIS CHALLENGE DETECTED warning, and whether the Cookie header was actually attached.",
+        "targetAbi": "10.11.6.0",
+        "sourceUrl": "https://github.com/NetPumi2/jellyfin-plugin-csfd/releases/download/v1.0.0.5/csfd-rating-1.0.0.5.zip",
+        "checksum": "e3bf3b19bb9ac882712e824645fdb6b8",
+        "timestamp": "2026-07-10T07:30:10Z"
+      },
+      {
         "version": "1.0.0.4",
         "changelog": "Fix: search results now prefer the result whose year matches the item's production year instead of always taking the first result (ČSFD often lists several unrelated titles sharing a name). Also adds much more detailed Info-level logging (search URL, resolved link, found rating or reason it wasn't set, whether the tag was added) for diagnosing future issues directly from the Jellyfin log.",
         "targetAbi": "10.11.6.0",
