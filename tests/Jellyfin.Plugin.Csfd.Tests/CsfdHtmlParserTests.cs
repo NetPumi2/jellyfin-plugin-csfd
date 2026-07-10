@@ -34,6 +34,46 @@ public class CsfdHtmlParserTests
     }
 
     [Fact]
+    public void FindFirstResultUrl_PrefersResultMatchingYear()
+    {
+        var html = ReadFixture("search-results-same-title-diff-years.html");
+
+        var url = CsfdHtmlParser.FindFirstResultUrl(html, CsfdItemKind.Movie, 2025);
+
+        Assert.Equal("/film/222222-roofman-2025/", url);
+    }
+
+    [Fact]
+    public void FindFirstResultUrl_PrefersEarlierYearMatch()
+    {
+        var html = ReadFixture("search-results-same-title-diff-years.html");
+
+        var url = CsfdHtmlParser.FindFirstResultUrl(html, CsfdItemKind.Movie, 2013);
+
+        Assert.Equal("/film/111111-roofman-2013/", url);
+    }
+
+    [Fact]
+    public void FindFirstResultUrl_FallsBackToFirstResult_WhenNoYearMatches()
+    {
+        var html = ReadFixture("search-results-same-title-diff-years.html");
+
+        var url = CsfdHtmlParser.FindFirstResultUrl(html, CsfdItemKind.Movie, 1999);
+
+        Assert.Equal("/film/111111-roofman-2013/", url);
+    }
+
+    [Fact]
+    public void FindFirstResultUrl_FallsBackToFirstResult_WhenYearNotProvided()
+    {
+        var html = ReadFixture("search-results-same-title-diff-years.html");
+
+        var url = CsfdHtmlParser.FindFirstResultUrl(html, CsfdItemKind.Movie);
+
+        Assert.Equal("/film/111111-roofman-2013/", url);
+    }
+
+    [Fact]
     public void FindFirstResultUrl_ReturnsNull_WhenSectionMissing()
     {
         var html = ReadFixture("search-results-no-movies.html");

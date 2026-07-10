@@ -53,7 +53,9 @@ internal static class CsfdMetadataUpdater
         var cached = cache.TryGet(name, year, ttl);
         if (cached is not null)
         {
-            return ApplyResult(item, cached.RatingPercent, cached.CsfdUrl);
+            logger.LogInformation(
+                "ČSFD: použita cache pro '{Name}' ({Year}) - hodnocení: {Rating}", name, year, cached.RatingPercent?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "žádné");
+            return ApplyResult(item, cached.RatingPercent, cached.CsfdUrl, name, logger);
         }
 
         var client = CsfdServices.GetClient(httpClientFactory, loggerFactory);
@@ -73,23 +75,26 @@ internal static class CsfdMetadataUpdater
         {
             case CsfdLookupStatus.Found:
                 cache.Set(name, year, new CsfdCacheEntry(DateTime.UtcNow, result.CsfdUrl, result.RatingPercent));
-                return ApplyResult(item, result.RatingPercent, result.CsfdUrl);
+                return ApplyResult(item, result.RatingPercent, result.CsfdUrl, name, logger);
 
             case CsfdLookupStatus.Unrated:
                 cache.Set(name, year, new CsfdCacheEntry(DateTime.UtcNow, result.CsfdUrl, null));
-                logger.LogDebug("ČSFD: '{Name}' ({Year}) zatím nemá dost hodnocení (?), rating nenastavuji.", name, year);
-                return ApplyResult(item, null, result.CsfdUrl);
+                return ApplyResult(item, null, result.CsfdUrl, name, logger);
 
             case CsfdLookupStatus.NotFound:
-                logger.LogDebug("ČSFD: nenalezen výsledek pro '{Name}' ({Year}).", name, year);
+                logger.LogInformation("ČSFD: Tag NEpřidán pro '{Name}' ({Year}), důvod: žádný výsledek vyhledávání.", name, year);
                 return ItemUpdateType.None;
 
             case CsfdLookupStatus.AnubisBlocked:
                 // CsfdClient already logged a clear "refresh the cookie" message; not cached
                 // deliberately, so the very next refresh retries once the cookie is fixed.
+                logger.LogInformation("ČSFD: Tag NEpřidán pro '{Name}' ({Year}), důvod: Anubis ochrana zablokovala request (viz warning výše).", name, year);
                 return ItemUpdateType.None;
 
             case CsfdLookupStatus.Error:
+                logger.LogInformation("ČSFD: Tag NEpřidán pro '{Name}' ({Year}), důvod: chyba při stahování (viz warning výše).", name, year);
+                return ItemUpdateType.None;
+
             default:
                 return ItemUpdateType.None;
         }
@@ -134,7 +139,7 @@ internal static class CsfdMetadataUpdater
         return !(item.Tags ?? Array.Empty<string>()).Contains(expectedTag, StringComparer.Ordinal);
     }
 
-    private static ItemUpdateType ApplyResult(BaseItem item, int? ratingPercent, string? csfdUrl)
+    private static ItemUpdateType ApplyResult(BaseItem item, int? ratingPercent, string? csfdUrl, string name, ILogger logger)
     {
         var updateType = ItemUpdateType.None;
 
@@ -155,6 +160,19 @@ internal static class CsfdMetadataUpdater
         {
             item.Tags = newTags;
             updateType |= ItemUpdateType.MetadataDownload;
+
+            if (ratingPercent.HasValue)
+            {
+                logger.LogInformation("ČSFD: Tag přidán pro '{Name}': \"{Tag}\"", name, newTags[^1]);
+            }
+        }
+        else if (!ratingPercent.HasValue)
+        {
+            logger.LogInformation("ČSFD: Tag NEpřidán pro '{Name}', důvod: film/seriál nalezen, ale nemá dost hodnocení (?).", name);
+        }
+        else
+        {
+            logger.LogInformation("ČSFD: Tag už byl aktuální pro '{Name}' (\"{Tag}\"), nic se nemění.", name, newTags[^1]);
         }
 
         if (!string.IsNullOrEmpty(csfdUrl)

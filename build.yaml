@@ -1,7 +1,7 @@
 ---
 name: "ČSFD Rating"
 guid: "200ed2e9-c3b4-4c8a-a8ae-b90fc6b635b8"
-version: "1.0.0.3"
+version: "1.0.0.4"
 targetAbi: "10.11.6.0"
 framework: "net9.0"
 owner: "NetPumi2"
@@ -15,6 +15,16 @@ artifacts:
 - "Jellyfin.Plugin.Csfd.dll"
 - "HtmlAgilityPack.dll"
 changelog: >
+  1.0.0.4
+  - Fix: search results now prefer the result whose year matches the item's production year,
+    instead of always taking the first result in the section. ČSFD often lists several
+    unrelated titles sharing a name (remakes, unrelated foreign films) - without year matching,
+    the wrong film/series could be picked (or, if the wrong one happened to be unrated, no tag
+    at all). Falls back to the first result if no year match is found, same as before.
+  - Add much more detailed Info-level logging (search URL, resolved ČSFD link, found rating or
+    reason it wasn't set, whether the tag was added) so future issues can be diagnosed directly
+    from the Jellyfin log without guessing.
+
   1.0.0.3
   - Fix: implement IHasItemChangeMonitor so a plain "Scan Library" picks up items that never
     got a ČSFD rating (or whose cached rating expired) without needing a "Replace all metadata"

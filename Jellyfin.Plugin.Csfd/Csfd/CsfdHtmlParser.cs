@@ -13,14 +13,21 @@ public static class CsfdHtmlParser
 {
     private static readonly Regex RatingRegex = new(@"(\d+|\?)\s*%", RegexOptions.Compiled);
 
+    private static readonly Regex YearRegex = new(@"\d{4}", RegexOptions.Compiled);
+
     /// <summary>
-    /// Finds the relative (or absolute) link to the first result in the "Filmy" or "Seriály"
-    /// section of a ČSFD search results page (<c>https://www.csfd.cz/hledat/?q=...</c>).
+    /// Finds the relative (or absolute) link to a result in the "Filmy" or "Seriály" section of
+    /// a ČSFD search results page (<c>https://www.csfd.cz/hledat/?q=...</c>). ČSFD often lists
+    /// several unrelated titles that share a name (remakes, unrelated foreign films, etc.), so
+    /// when <paramref name="year"/> is known, this prefers the first result whose year matches
+    /// it exactly. If no result matches the year (or the year isn't known), it falls back to the
+    /// first result in the section, same as before year-awareness was added.
     /// </summary>
     /// <param name="searchResultsHtml">The raw HTML of the search results page.</param>
     /// <param name="kind">Whether to look under the movie or series result section.</param>
-    /// <returns>The href of the first matching result, or <see langword="null"/> if the section or a result was not found.</returns>
-    public static string? FindFirstResultUrl(string searchResultsHtml, CsfdItemKind kind)
+    /// <param name="year">The item's production year, if known, to disambiguate same-titled results.</param>
+    /// <returns>The href of the best matching result, or <see langword="null"/> if the section has no results at all.</returns>
+    public static string? FindFirstResultUrl(string searchResultsHtml, CsfdItemKind kind, int? year = null)
     {
         ArgumentNullException.ThrowIfNull(searchResultsHtml);
 
@@ -32,7 +39,41 @@ public static class CsfdHtmlParser
         var section = doc.DocumentNode.SelectSingleNode(
             $"//section[contains(concat(' ', normalize-space(@class), ' '), ' {sectionClass} ')]");
 
-        var link = section?.SelectSingleNode(
+        var titleHeadings = section?.SelectNodes(
+            ".//h3[contains(concat(' ', normalize-space(@class), ' '), ' film-title-nooverflow ')]");
+
+        if (titleHeadings is null || titleHeadings.Count == 0)
+        {
+            return null;
+        }
+
+        if (year.HasValue)
+        {
+            foreach (var heading in titleHeadings)
+            {
+                var yearNode = heading.SelectSingleNode(
+                    ".//span[contains(concat(' ', normalize-space(@class), ' '), ' film-title-info ')]"
+                    + "/span[contains(concat(' ', normalize-space(@class), ' '), ' info ')][1]");
+
+                var yearMatch = yearNode is not null ? YearRegex.Match(yearNode.InnerText) : null;
+                if (yearMatch is { Success: true } && int.Parse(yearMatch.Value, CultureInfo.InvariantCulture) == year.Value)
+                {
+                    var matchHref = GetResultHref(heading);
+                    if (matchHref is not null)
+                    {
+                        return matchHref;
+                    }
+                }
+            }
+        }
+
+        // No year given, or none of the results matched it - fall back to the first result.
+        return GetResultHref(titleHeadings[0]);
+    }
+
+    private static string? GetResultHref(HtmlNode titleHeading)
+    {
+        var link = titleHeading.SelectSingleNode(
             ".//a[contains(concat(' ', normalize-space(@class), ' '), ' film-title-name ')]");
 
         var href = link?.GetAttributeValue("href", string.Empty);

@@ -50,8 +50,11 @@ is invalid - refresh it in the ČSFD Rating plugin settings"), and you just repe
 
 1. For an item (`Movie`/`Series`), it takes `item.Name` and `item.ProductionYear` and builds the
    search URL `https://www.csfd.cz/hledat/?q={name}+{year}`.
-2. It downloads the HTML (with the cookie from configuration) and takes the first result under
-   the "Filmy" (movies) or "Seriály" (series) section, matching the item's type.
+2. It downloads the HTML (with the cookie from configuration) and, within the "Filmy" (movies) or
+   "Seriály" (series) section matching the item's type, picks the first result whose listed year
+   matches `item.ProductionYear` (ČSFD often lists several unrelated titles that share a name -
+   remakes, unrelated foreign films, etc.). If no result's year matches (or the year isn't known),
+   it falls back to the plain first result in the section.
 3. It downloads that movie's/series's page and extracts the percentage from
    `<div class="film-rating-average">63%</div>`. If ČSFD shows `?` (not enough ratings yet), no
    rating is set.
@@ -62,11 +65,14 @@ is invalid - refresh it in the ČSFD Rating plugin settings"), and you just repe
 
 Error handling: a missing/invalid cookie, a timeout, no matching search result, or a change in
 ČSFD's page structure are all just logged (`ILogger`) - the item is left without a ČSFD tag and
-the library refresh keeps going; the plugin never crashes over a single item.
+the library refresh keeps going; the plugin never crashes over a single item. All of the steps
+above log an Info-level line (search URL, resolved ČSFD link, found rating or the reason it
+wasn't set, whether the tag was actually added) - see **Troubleshooting** below for how to read
+them.
 
-**Known limitations:** the first search result is used as-is - for ambiguous titles (several
-movies with the same name and year, remakes, etc.) this can pick the wrong item. ČSFD's page
-structure may change over time and break parsing - if that happens, update the selectors in
+**Known limitations:** if ČSFD lists more than one same-titled, same-year result (rare, but
+possible), the first one in that year is used as-is. ČSFD's page structure may change over time
+and break parsing - if that happens, update the selectors in
 `Jellyfin.Plugin.Csfd/Csfd/CsfdHtmlParser.cs`.
 
 ## Build
@@ -103,7 +109,7 @@ This repo is public and is meant to be installed as a custom Jellyfin plugin rep
 by `manifest.json` at the repo root (served via raw.githubusercontent.com) and a `.zip` per
 version attached to a GitHub Release.
 
-1. Bump the version in `Directory.Build.props` (and `build.yaml`) if this isn't `1.0.0.3`.
+1. Bump the version in `Directory.Build.props` (and `build.yaml`) if this isn't `1.0.0.4`.
 2. Build and package the release zip:
 
    ```bash
@@ -180,13 +186,13 @@ directory (typically mounted as a volume, e.g. `/config` inside the container). 
 2. **Create the plugin's subdirectory** (the version must match the one in `meta.json`/`build.yaml`):
 
    ```bash
-   mkdir -p "<Source>/plugins/ČSFD Rating_1.0.0.3"
+   mkdir -p "<Source>/plugins/ČSFD Rating_1.0.0.4"
    ```
 
 3. **Copy the DLL files and meta.json** from `publish/` into that directory:
 
    ```bash
-   cp publish/Jellyfin.Plugin.Csfd.dll publish/HtmlAgilityPack.dll "<Source>/plugins/ČSFD Rating_1.0.0.3/"
+   cp publish/Jellyfin.Plugin.Csfd.dll publish/HtmlAgilityPack.dll "<Source>/plugins/ČSFD Rating_1.0.0.4/"
    ```
 
    `meta.json` (bump `version`/`timestamp` for later releases) - contents:
@@ -194,14 +200,14 @@ directory (typically mounted as a volume, e.g. `/config` inside the container). 
    ```json
    {
      "category": "Metadata",
-     "changelog": "1.0.0.3 - Fix: implement IHasItemChangeMonitor so a plain Scan Library picks up items without needing a Replace all metadata refresh.",
+     "changelog": "1.0.0.4 - Fix: prefer the search result matching the item's year; add detailed Info-level logging.",
      "description": "Looks up a movie/series on ČSFD by name and year during a metadata refresh and adds its percentage rating as a \"ČSFD: NN%\" tag.",
      "guid": "200ed2e9-c3b4-4c8a-a8ae-b90fc6b635b8",
      "name": "ČSFD Rating",
      "overview": "Shows the ČSFD rating (in %) for movies and series.",
      "owner": "NetPumi2",
      "targetAbi": "10.11.6.0",
-     "version": "1.0.0.3",
+     "version": "1.0.0.4",
      "status": 0,
      "autoUpdate": false
    }
@@ -248,6 +254,73 @@ that interface, so the ČSFD provider only ever ran for brand-new items or durin
 still-valid cached ČSFD result for the item yet (never looked up, or the cache TTL expired), so a
 routine "Scan Library" (or the periodic scheduled library scan) now picks those items up too.
 
+## Troubleshooting
+
+If a tag still doesn't show up after a "Replace all metadata" refresh, check these in order (all
+via SSH into the machine running the Jellyfin container/config - substitute `<CONFIG>` with the
+host path you found under **Installing on Jellyfin** above, e.g. via `docker inspect`):
+
+1. **Is the cookie actually saved?** The plugin's config is an XML file named after the plugin
+   assembly, at `<CONFIG>/plugins/configurations/Jellyfin.Plugin.Csfd.xml`. Check it directly
+   instead of trusting the settings page:
+
+   ```bash
+   grep -A1 CsfdSessionCookie "<CONFIG>/plugins/configurations/Jellyfin.Plugin.Csfd.xml"
+   ```
+
+   If `<CsfdSessionCookie>` is empty (`<CsfdSessionCookie />` or `<CsfdSessionCookie></CsfdSessionCookie>`),
+   the value in the Settings page was never actually saved (e.g. "Save" wasn't clicked, or the
+   page reloaded before the request finished) - go back to Settings, paste the cookie again, and
+   confirm you see the "Settings saved" confirmation toast.
+
+2. **What does the log say happened for that specific item?** As of 1.0.0.4 every step logs at
+   **Info** level (not just Debug/Warning), so it's visible without turning on verbose logging.
+   If Jellyfin runs in Docker, tail the container's own logs and filter for the plugin:
+
+   ```bash
+   docker logs -f --since 10m <jellyfin_container_name> 2>&1 | grep -i "csfd"
+   ```
+
+   (or, without `-f`, grep the on-disk log file instead: `grep -i csfd "<CONFIG>/log/log_*.log"`,
+   picking the most recent one). Then trigger the refresh again and watch for, in order:
+   - `ČSFD: zpracovávám 'Roofman' (2025)` - confirms the provider actually ran for this item at all.
+     If this line never appears, the provider was skipped entirely (wrong item type, plugin
+     disabled, or - for a non-"Replace all metadata" scan - `IHasItemChangeMonitor` decided
+     nothing needed refetching; see the cache check below).
+   - `ČSFD: search URL pro 'Roofman' (2025): https://www.csfd.cz/hledat/?q=Roofman+2025` - the
+     exact URL requested.
+   - Either `ČSFD: nalezený odkaz pro 'Roofman' (2025): https://www.csfd.cz/film/...` or
+     `ČSFD: odkaz nenalezen pro 'Roofman' (2025) - žádný výsledek v sekci vyhledávání.`
+   - A warning containing `Anubis ochrana zablokovala request` means the cookie is missing/expired
+     - go back to step 1.
+   - Either `ČSFD: nalezené hodnocení pro 'Roofman' (2025): NN%` or a line explaining why not
+     (rating element missing / shows "?").
+   - Finally `ČSFD: Tag přidán pro 'Roofman': "ČSFD: NN%"`, or `ČSFD: Tag NEpřidán pro '...', důvod: ...`
+     spelling out exactly why nothing was written to the item.
+
+3. **Is there a stale cache entry blocking a retry?** Results (including "not found"/unrated) are
+   cached in a JSON file per name+year, so a bad result from an earlier attempt (e.g. before the
+   cookie was set) sticks around until the configured TTL expires. Find and inspect it:
+
+   ```bash
+   find "<CONFIG>" -iname "csfd-cache.json"
+   cat "<the path that found>" | python3 -m json.tool | grep -B1 -A3 -i roofman
+   ```
+
+   The key format is `"<lowercased name>|<year>"`, e.g. `"roofman|2025"`. To force an immediate
+   retry for just that title, remove its key from the JSON file (or delete the whole file to
+   clear everything) while Jellyfin is stopped, then start it again and re-run the refresh. You
+   can also just lower `CacheTtlHours` in the plugin settings temporarily and wait it out instead
+   of editing the file directly.
+
+4. **Does the ČSFD search actually return the right film for this title/year?** Open
+   `https://www.csfd.cz/hledat/?q=Roofman+2025` yourself in a browser (same query the plugin
+   builds) and confirm the first result in the "Filmy" section for that year is the film you
+   expect - ČSFD sometimes lists several unrelated titles sharing a name. As of 1.0.0.4 the plugin
+   matches on year (see **How the plugin works** above), but if ČSFD's HTML structure changes
+   this could still silently break; the log lines from step 2 tell you exactly which URL it
+   actually picked so you can compare.
+
 ## Project layout
 
 ```
@@ -274,19 +347,19 @@ tests/Jellyfin.Plugin.Csfd.Tests/
 
 ## Manual steps (need your GitHub/Jellyfin login - can't be automated)
 
-To finish publishing v1.0.0.3 and make the plugin catalog installable:
+To finish publishing v1.0.0.4 and make the plugin catalog installable:
 
 1. **Create the GitHub Release.** On GitHub, go to the repo → **Releases → Draft a new release**.
-   - Tag: `v1.0.0.3` (create it on publish, targeting `main`)
-   - Title: e.g. `v1.0.0.3`
-   - Attach `dist/csfd-rating-1.0.0.3.zip` (built by `./scripts/package-release.sh`) under
+   - Tag: `v1.0.0.4` (create it on publish, targeting `main`)
+   - Title: e.g. `v1.0.0.4`
+   - Attach `dist/csfd-rating-1.0.0.4.zip` (built by `./scripts/package-release.sh`) under
      **Attach binaries by dropping them here**.
    - Publish the release. This must produce the download URL already referenced in
      `manifest.json`:
-     `https://github.com/NetPumi2/jellyfin-plugin-csfd/releases/download/v1.0.0.3/csfd-rating-1.0.0.3.zip`
-   - The earlier `v1.0.0.0`/`v1.0.0.1`/`v1.0.0.2` releases/tags (if you already created them) can
-     be left as-is for history, or deleted - your choice. `manifest.json` now points people at
-     `1.0.0.3` first either way.
+     `https://github.com/NetPumi2/jellyfin-plugin-csfd/releases/download/v1.0.0.4/csfd-rating-1.0.0.4.zip`
+   - The earlier `v1.0.0.0`/`v1.0.0.1`/`v1.0.0.2`/`v1.0.0.3` releases/tags (if you already created
+     them) can be left as-is for history, or deleted - your choice. `manifest.json` now points
+     people at `1.0.0.4` first either way.
 2. **Add the repository in Jellyfin.** Dashboard → Plugins → Repositories → New Repository:
    - Repository Name: `ČSFD Rating` (or anything)
    - Repository URL: `https://raw.githubusercontent.com/NetPumi2/jellyfin-plugin-csfd/main/manifest.json`

@@ -71,6 +71,8 @@ public class CsfdClient
     {
         ArgumentNullException.ThrowIfNull(name);
 
+        _logger.LogInformation("ČSFD: zpracovávám '{Name}' ({Year})", name, year);
+
         if (string.IsNullOrWhiteSpace(sessionCookie))
         {
             _logger.LogWarning(
@@ -78,6 +80,8 @@ public class CsfdClient
         }
 
         var searchUrl = BuildSearchUrl(name, year);
+        _logger.LogInformation("ČSFD: search URL pro '{Name}' ({Year}): {Url}", name, year, searchUrl);
+
         string searchHtml;
         try
         {
@@ -95,16 +99,18 @@ public class CsfdClient
             return new CsfdLookupResult(CsfdLookupStatus.AnubisBlocked, null, null);
         }
 
-        var relativeUrl = CsfdHtmlParser.FindFirstResultUrl(searchHtml, kind);
+        var relativeUrl = CsfdHtmlParser.FindFirstResultUrl(searchHtml, kind, year);
         if (relativeUrl is null)
         {
-            _logger.LogDebug("ČSFD: nenalezen žádný výsledek pro '{Name}' ({Year})", name, year);
+            _logger.LogInformation("ČSFD: odkaz nenalezen pro '{Name}' ({Year}) - žádný výsledek v sekci vyhledávání.", name, year);
             return new CsfdLookupResult(CsfdLookupStatus.NotFound, null, null);
         }
 
         var filmUrl = relativeUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase)
             ? relativeUrl
             : BaseUrl + relativeUrl;
+
+        _logger.LogInformation("ČSFD: nalezený odkaz pro '{Name}' ({Year}): {Url}", name, year, filmUrl);
 
         string filmHtml;
         try
@@ -124,9 +130,16 @@ public class CsfdClient
         }
 
         var rating = CsfdHtmlParser.ExtractRatingPercent(filmHtml);
-        return rating.HasValue
-            ? new CsfdLookupResult(CsfdLookupStatus.Found, filmUrl, rating)
-            : new CsfdLookupResult(CsfdLookupStatus.Unrated, filmUrl, null);
+        if (rating.HasValue)
+        {
+            _logger.LogInformation("ČSFD: nalezené hodnocení pro '{Name}' ({Year}): {Rating}%", name, year, rating);
+            return new CsfdLookupResult(CsfdLookupStatus.Found, filmUrl, rating);
+        }
+
+        _logger.LogInformation(
+            "ČSFD: stránka {Url} nalezena, ale element s hodnocením chybí nebo ukazuje \"?\" (zatím nedost hodnocení) - rating nenastavuji.",
+            filmUrl);
+        return new CsfdLookupResult(CsfdLookupStatus.Unrated, filmUrl, null);
     }
 
     private void LogAnubisBlocked(string url)
